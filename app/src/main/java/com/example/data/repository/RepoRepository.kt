@@ -774,9 +774,9 @@ class RepoRepository(
                     force = false
                 )
             )
-            if (!updateResponse.isSuccessful) {
+            if (updateResponse.`object`.sha != newCommit.sha) {
                 return@withContext Result.failure(
-                    Exception("GitHub created the commit but failed to update branch '$targetBranchName': HTTP ${updateResponse.code()}")
+                    Exception("GitHub did not confirm that branch '$targetBranchName' points to the new commit.")
                 )
             }
 
