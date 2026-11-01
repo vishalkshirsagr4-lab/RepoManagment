@@ -206,12 +206,14 @@ interface GitHubApiService {
     ): CheckRunsResponse
 
     // Repository Secrets
-    @GET("repos/{owner}/{repo}/actions/secrets")
-    suspend fun getRepoSecrets(
-        @Header("Authorization") auth: String,
-        @Path("owner") owner: String,
-        @Path("repo") repo: String
-    ): GitHubSecretsResponse
+@GET("repos/{owner}/{repo}/actions/secrets")
+suspend fun getRepoSecrets(
+    @Header("Authorization") auth: String,
+    @Path("owner") owner: String,
+    @Path("repo") repo: String,
+    @retrofit2.http.Query("per_page") perPage: Int = 100,
+    @retrofit2.http.Query("page") page: Int = 1
+): GitHubSecretsResponse
 
     @GET("repos/{owner}/{repo}/actions/secrets/public-key")
     suspend fun getRepoPublicKey(
