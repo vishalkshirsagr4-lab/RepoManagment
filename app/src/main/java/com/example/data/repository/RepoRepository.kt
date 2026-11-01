@@ -169,7 +169,7 @@ class RepoRepository(
             }
             Result.success(items)
         } catch (e: Exception) {
-            if (isDemoMode() || token.isNullOrBlank()) {
+            if (isDemoMode()) {
                 Result.success(DemoData.getDemoContents(path))
             } else {
                 Result.failure(e)
@@ -206,7 +206,7 @@ class RepoRepository(
             }
             Result.success(Pair(decoded, fileItem.sha))
         } catch (e: Exception) {
-            if (isDemoMode() || token.isNullOrBlank()) {
+            if (isDemoMode()) {
                 val demoFallback = DemoData.getDemoFileCode(path)
                 Result.success(Pair(demoFallback, "fallback-sha"))
             } else {
