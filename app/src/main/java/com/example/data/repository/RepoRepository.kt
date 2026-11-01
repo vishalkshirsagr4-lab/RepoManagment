@@ -232,6 +232,7 @@ class RepoRepository(
         val ext = path.substringAfterLast('.', "")
         val token = secureStorage.getGitHubToken()
         if (token.isNullOrBlank()) {
+            dynamicDemoFiles[key] = content
             val newSha = "c" + (1000..9999).random()
             val newCommit = GitHubCommit(
                 sha = newSha,
@@ -358,6 +359,7 @@ class RepoRepository(
                 branch = branch
             )
             if (response.isSuccessful) {
+                recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$path")
                 Result.success(
                     PushResult(
                         success = true,
@@ -509,18 +511,26 @@ class RepoRepository(
             val auth = "Bearer $token"
             val contents = api.getDirectoryContents(auth, owner, repo, cleanOld, branch)
             var count = 0
+            var lastCommitSha: String? = null
             for (item in contents) {
                 if (item.type == "file") {
                     val relativePath = item.path.removePrefix(cleanOld).trim('/')
                     val targetPath = "$cleanNew/$relativePath"
-                    renameFile(owner, repo, item.path, targetPath, commitMessage, branch)
+                    val renameResult = renameFile(owner, repo, item.path, targetPath, commitMessage, branch)
+                    if (renameResult.isFailure) {
+                        return@withContext Result.failure(renameResult.exceptionOrNull() ?: Exception("Failed to rename " + item.path))
+                    }
+                    lastCommitSha = renameResult.getOrThrow().commitSha
                     count++
                 }
+            }
+            if (count == 0 || lastCommitSha.isNullOrBlank()) {
+                return@withContext Result.failure(Exception("No files were renamed in folder " + cleanOld))
             }
             Result.success(
                 PushResult(
                     success = true,
-                    commitSha = "ren-ok",
+                    commitSha = lastCommitSha,
                     branch = branch ?: "main",
                     message = "Renamed folder $cleanOld to $cleanNew ($count files updated)",
                     timestamp = "Just now",
