@@ -181,7 +181,7 @@ private fun MediaFilePreview(
 ) {
     val context = LocalContext.current
     var playerError by remember(sourceUrl) { mutableStateOf<String?>(null) }
-    val player = remember(sourceUrl, token) {
+    val exoPlayer = remember(sourceUrl, token) {
         val httpFactory = DefaultHttpDataSource.Factory().apply {
             if (!token.isNullOrBlank()) {
                 setDefaultRequestProperties(mapOf("Authorization" to "Bearer $token"))
@@ -201,7 +201,7 @@ private fun MediaFilePreview(
             }
     }
     DisposableEffect(player) {
-        onDispose { player.release() }
+        onDispose { exoPlayer.release() }
     }
 
     Column(
@@ -215,11 +215,11 @@ private fun MediaFilePreview(
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     useController = true
-                    player = this@MediaFilePreview.player
+                    player = exoPlayer
                     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                 }
             },
-            update = { it.player = player }
+            update = { it.player = exoPlayer }
         )
         if (playerError != null) {
             Text(playerError!!, color = StatusError, style = MaterialTheme.typography.bodySmall)
