@@ -461,7 +461,7 @@ fun EditorScreen(
             if (activeTab != null) {
                 IconButton(
                     onClick = { showRenameDialog = true },
-                    modifier = Modifier.size(28.dp).testTag("editor_toolbar_rename_btn")
+                    modifier = Modifier.size(40.dp).testTag("editor_toolbar_rename_btn")
                 ) {
                     Icon(
                         Icons.Default.DriveFileRenameOutline,
@@ -473,13 +473,13 @@ fun EditorScreen(
             }
             IconButton(
                 onClick = { viewModel.undo() },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(Icons.Default.Undo, contentDescription = "Undo", tint = TextSecondary, modifier = Modifier.size(16.dp))
             }
             IconButton(
                 onClick = { viewModel.toggleSearch(!uiState.isSearching) },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
                     Icons.Default.Search,
@@ -490,7 +490,7 @@ fun EditorScreen(
             }
             IconButton(
                 onClick = { viewModel.toggleReplace() },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
                     Icons.Default.FindReplace,
@@ -501,7 +501,7 @@ fun EditorScreen(
             }
             IconButton(
                 onClick = { viewModel.toggleWordWrap() },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
                     Icons.Default.WrapText,
@@ -516,13 +516,13 @@ fun EditorScreen(
                         clipboardManager.setText(AnnotatedString(activeTab.content))
                     }
                 },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = TextSecondary, modifier = Modifier.size(16.dp))
             }
             IconButton(
                 onClick = { keyboardController?.hide() },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(Icons.Default.KeyboardHide, contentDescription = "Hide Keyboard", tint = SecondaryCyan, modifier = Modifier.size(16.dp))
             }
@@ -1432,7 +1432,7 @@ private fun GitDiffCanvas(
                     ) {
                         Text("-$del lines", fontSize = 11.sp, color = StatusError, fontWeight = FontWeight.Bold)
                     }
-                    IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Default.Close, contentDescription = "Exit Diff", tint = TextSecondary, modifier = Modifier.size(16.dp))
                     }
                 }
