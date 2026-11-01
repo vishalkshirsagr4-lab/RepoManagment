@@ -325,6 +325,9 @@ class RepoRepository(
         commitMessage: String,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before deleting files."))
+        }
         val key = "$owner/$repo:$path"
         dynamicDemoFiles.remove(key) 
         if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
@@ -1100,10 +1103,18 @@ suspend fun getRepoSecrets(
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val fullName = "$owner/$repo"
         val token = secureStorage.getGitHubToken()
+        if (token.isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before deleting repository secrets."))
+        }
         if (!token.isNullOrBlank()) {
             try {
-                api.deleteRepoSecret("Bearer $token", owner, repo, secretName)
-            } catch (_: Exception) {}
+                val response = api.deleteRepoSecret("Bearer $token", owner, repo, secretName)
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception("GitHub rejected secret deletion: HTTP " + response.code()))
+                }
+            } catch (e: Exception) {
+                return@withContext Result.failure(Exception("Unable to delete GitHub secret: " + e.message, e))
+            }
         }
         val localMap = loadLocalSecrets(fullName).toMutableMap()
         localMap.remove(secretName)
