@@ -132,9 +132,7 @@ class RepoRepository(
                 repoDao.insertAll(entities)
                 Result.success(repos)
             } catch (e: Exception) {
-                // Return cached repos if available
-                val fallback = dynamicDemoRepos.toList()
-                Result.success(fallback)
+                Result.failure(e)
             }
         }
 
@@ -1012,34 +1010,16 @@ suspend fun getRepoSecrets(
         if (!token.isNullOrBlank()) {
             try {
                 val pubKey = api.getRepoPublicKey("Bearer $token", owner, repo)
-                val fakeEncrypted = Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-                val response = api.createOrUpdateRepoSecret(
-                    auth = "Bearer $token",
-                    owner = owner,
-                    repo = repo,
-                    secretName = cleanName,
-                    body = CreateSecretBody(encryptedValue = fakeEncrypted, keyId = pubKey.keyId)
-                )
-                if (response.isSuccessful) {
-                    remoteSuccess = true
-                }
-            } catch (_: Exception) {
-                // Ignore API failure and save securely to local vault
+                return@withContext Result.failure(Exception("GitHub secrets require libsodium sealed-box encryption. Base64 encoding is not encryption, so no secret was uploaded."))
+            } catch (e: Exception) {
+                return@withContext Result.failure(Exception("Unable to prepare GitHub secret: " + e.message, e))
             }
+        } else if (!isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before managing repository secrets."))
         }
 
         // Always store securely in encrypted device vault so secret is preserved
-        val localMap = loadLocalSecrets(fullName).toMutableMap()
-        val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
-        localMap[cleanName] = RepoSecretItem(
-            name = cleanName,
-            createdAt = localMap[cleanName]?.createdAt ?: now,
-            updatedAt = now,
-            isLocal = !remoteSuccess
-        )
-        saveLocalSecrets(fullName, localMap)
-
-        Result.success(Unit)
+        Result.failure(Exception("Secret was not saved because secure GitHub encryption is not implemented."))
     }
 
     suspend fun addBulkSecrets(
