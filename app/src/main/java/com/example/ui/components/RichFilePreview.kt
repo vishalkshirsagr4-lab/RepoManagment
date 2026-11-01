@@ -69,6 +69,7 @@ import java.util.zip.ZipInputStream
  * Legacy binary .doc/.xls files are identified as unsupported rather than shown as
  * if they were rendered successfully.
  */
+@OptIn(UnstableApi::class)
 @Composable
 fun RichFilePreview(
     fileName: String,
