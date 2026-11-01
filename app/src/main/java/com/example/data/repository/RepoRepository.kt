@@ -224,11 +224,10 @@ class RepoRepository(
         sha: String?,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        val key = "$owner/$repo:$path" 
+        val key = "$owner/$repo:$path"
         if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
             return@withContext Result.failure(Exception("Connect your GitHub account before committing files."))
         }
-        dynamicDemoFiles[key] = content
 
         val ext = path.substringAfterLast('.', "")
         recentFileDao.saveRecentFile(
@@ -329,14 +328,11 @@ class RepoRepository(
             return@withContext Result.failure(Exception("Connect your GitHub account before deleting files."))
         }
         val key = "$owner/$repo:$path"
-        dynamicDemoFiles.remove(key) 
-        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
-            return@withContext Result.failure(Exception("Connect your GitHub account before deleting files."))
-        }
-        recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$path")
 
         val token = secureStorage.getGitHubToken()
         if (token.isNullOrBlank()) {
+            dynamicDemoFiles.remove(key)
+            recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$path")
             return@withContext Result.success(
                 PushResult(
                     success = true,
@@ -604,10 +600,10 @@ class RepoRepository(
         commitDescription: String?,
         changes: List<StagedChange>
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        if (changes.isEmpty()) { 
         if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
             return@withContext Result.failure(Exception("Connect your GitHub account before committing staged changes."))
         }
+        if (changes.isEmpty()) {
             return@withContext Result.failure(Exception("No staged changes to commit."))
         }
 
