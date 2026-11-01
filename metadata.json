@@ -1,0 +1,6 @@
+{
+  "name": "Repo Manager Pro",
+  "description": "Professional developer dashboard and cloud repository manager for GitHub, Hugging Face, and Cloudflare.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
