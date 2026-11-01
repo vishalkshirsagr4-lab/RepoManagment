@@ -899,30 +899,78 @@ class RepoRepository(
                 Result.failure(e)
             }
         }
+// Repository Action Secrets Management
+suspend fun getRepoSecrets(
+    owner: String,
+    repo: String
+): Result<List<RepoSecretItem>> = withContext(Dispatchers.IO) {
 
-    // Repository Action Secrets Management
-    suspend fun getRepoSecrets(owner: String, repo: String): Result<List<RepoSecretItem>> =
-        withContext(Dispatchers.IO) {
-            val fullName = "$owner/$repo"
-            val token = secureStorage.getGitHubToken()
-            val remoteSecrets = mutableListOf<RepoSecretItem>()
-            if (!token.isNullOrBlank()) {
-                try {
-                    val resp = api.getRepoSecrets("Bearer $token", owner, repo)
-                    resp.secrets.forEach { sec ->
-                        remoteSecrets.add(
-                            RepoSecretItem(
-                                name = sec.name,
-                                createdAt = sec.createdAt,
-                                updatedAt = sec.updatedAt,
-                                isLocal = false
-                            )
-                        )
-                    }
-                } catch (_: Exception) {
-                    // Falls back or supplements with local vault
-                }
+    val token = secureStorage.getGitHubToken()
+
+    if (token.isNullOrBlank()) {
+        return@withContext Result.failure(
+            Exception("GitHub token is missing. Please configure your token.")
+        )
+    }
+
+    try {
+        val allSecrets = mutableListOf<RepoSecretItem>()
+        var page = 1
+        var totalCount: Int
+
+        do {
+            val response = api.getRepoSecrets(
+                auth = "Bearer $token",
+                owner = owner,
+                repo = repo,
+                perPage = 100,
+                page = page
+            )
+
+            totalCount = response.totalCount
+
+            response.secrets.forEach { secret ->
+                allSecrets.add(
+                    RepoSecretItem(
+                        name = secret.name,
+                        createdAt = secret.createdAt,
+                        updatedAt = secret.updatedAt,
+                        isLocal = false
+                    )
+                )
             }
+
+            page++
+
+        } while (allSecrets.size < totalCount && page <= 20)
+
+        Result.success(allSecrets.sortedBy { it.name })
+
+    } catch (e: retrofit2.HttpException) {
+
+        val message = when (e.code()) {
+            401 -> "Authentication failed. Check your GitHub token."
+            403 -> "Access denied. Check your GitHub Secrets permission."
+            404 -> "Repository not found or token cannot access it."
+            422 -> "GitHub rejected the request."
+            else -> "GitHub API error: HTTP ${e.code()}"
+        }
+
+        Result.failure(Exception(message, e))
+
+    } catch (e: java.io.IOException) {
+
+        Result.failure(
+            Exception("Network error. Check your internet connection.", e)
+        )
+
+    } catch (e: Exception) {
+
+        Result.failure(
+            Exception("Failed to fetch secrets: ${e.message}", e)
+        )
+    }
+}
 
             // Read local encrypted vault
             val localSecrets = loadLocalSecrets(fullName)
