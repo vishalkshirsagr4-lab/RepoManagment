@@ -189,6 +189,12 @@ fun RepositoriesScreen(
                 },
                 secrets = uiState.secrets,
                 isSecretsLoading = uiState.isSecretsLoading,
+                secretsError = uiState.secretsError,
+                onRefreshSecrets = {
+                    uiState.selectedRepo?.fullName?.split("/")?.takeIf { it.size >= 2 }?.let {
+                        viewModel.loadRepoSecrets(it[0], it[1])
+                    }
+                },
                 workflows = uiState.workflows,
                 isWorkflowsLoading = uiState.isWorkflowsLoading,
                 checkRuns = uiState.checkRuns,
@@ -593,6 +599,8 @@ private fun RepoDetailContent(
     onDownloadZip: () -> Unit,
     secrets: List<RepoSecretItem>,
     isSecretsLoading: Boolean,
+    secretsError: String?,
+    onRefreshSecrets: () -> Unit,
     workflows: List<GitHubWorkflow>,
     isWorkflowsLoading: Boolean,
     checkRuns: List<GitHubCheckRun>,
@@ -948,6 +956,8 @@ private fun RepoDetailContent(
             4 -> RepoSecretsTab(
                 secrets = secrets,
                 isLoading = isSecretsLoading,
+                errorMessage = secretsError,
+                onRetry = onRefreshSecrets,
                 onAddSecretClick = { showAddSecretDialog = true },
                 onBulkSecretsClick = { showBulkSecretsDialog = true },
                 onDeleteSecretClick = { sec -> deletingSecret = sec }
@@ -2446,6 +2456,8 @@ private fun ActionsWorkflowsTab(
 private fun RepoSecretsTab(
     secrets: List<RepoSecretItem>,
     isLoading: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
     onAddSecretClick: () -> Unit,
     onBulkSecretsClick: () -> Unit,
     onDeleteSecretClick: (RepoSecretItem) -> Unit
@@ -2537,8 +2549,28 @@ private fun RepoSecretsTab(
             }
         }
 
-        // List of Secrets
-        if (secrets.isEmpty() && !isLoading) {
+        // Surface permission/network/API failures distinctly from a genuine empty secret list.
+        if (!errorMessage.isNullOrBlank()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = StatusError.copy(alpha = 0.10f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, StatusError.copy(alpha = 0.45f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Could not load GitHub Actions secrets", color = StatusError, fontWeight = FontWeight.Bold)
+                        Text(errorMessage, color = TextPrimary, style = MaterialTheme.typography.bodySmall)
+                        Button(onClick = onRetry, enabled = !isLoading) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
+        } else if (secrets.isEmpty() && !isLoading) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
