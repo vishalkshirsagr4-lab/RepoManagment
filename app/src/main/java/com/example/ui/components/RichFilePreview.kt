@@ -200,7 +200,7 @@ private fun MediaFilePreview(
                 prepare()
             }
     }
-    DisposableEffect(player) {
+    DisposableEffect(exoPlayer) {
         onDispose { exoPlayer.release() }
     }
 
@@ -346,7 +346,7 @@ private fun extractOfficeText(file: File, extension: String): String {
                 val attrs = cell.groupValues[1]
                 val body = cell.groupValues[2]
                 val value = Regex("<v[^>]*>(.*?)</v>").find(body)?.groupValues?.get(1)
-                val type = Regex("""t="([^"]+)"""").find(attrs)?.groupValues?.get(1)
+                val type = Regex("t=\\\"([^\\\"]+)\\\"").find(attrs)?.groupValues?.get(1)
                 when {
                     type == "s" && value != null -> sharedStrings.getOrNull(value.toIntOrNull() ?: -1) ?: ""
                     type == "inlineStr" -> xmlText(body)
