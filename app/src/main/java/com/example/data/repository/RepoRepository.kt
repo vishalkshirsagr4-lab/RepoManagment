@@ -435,7 +435,7 @@ class RepoRepository(
             )
 
             // 3. Delete old file
-            api.deleteFile(
+            val deleteResp = api.deleteFile(
                 auth = auth,
                 owner = owner,
                 repo = repo,
@@ -444,7 +444,12 @@ class RepoRepository(
                 sha = oldItem.sha,
                 branch = branch
             )
+            if (!deleteResp.isSuccessful) {
+                return@withContext Result.failure(Exception("New file was created, but deleting the old file failed: HTTP " + deleteResp.code()))
+            }
 
+            val commitSha = createResp.commit?.sha?.take(7)
+                ?: return@withContext Result.failure(Exception("GitHub did not return a commit SHA for the rename."))
             recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$oldPath")
             val ext = newPath.substringAfterLast('.', "")
             recentFileDao.saveRecentFile(RecentFileEntity(
@@ -453,8 +458,6 @@ class RepoRepository(
                 filePath = newPath, fileName = newPath.substringAfterLast('/'),
                 language = ext, lastModified = System.currentTimeMillis(), isDirty = false
             ))
-            val commitSha = createResp.commit?.sha?.take(7)
-                ?: return@withContext Result.failure(Exception("GitHub did not return a commit SHA for the rename."))
             Result.success(
                 PushResult(
                     success = true,
