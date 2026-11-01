@@ -190,6 +190,8 @@ fun RepositoriesScreen(
                 secrets = uiState.secrets,
                 isSecretsLoading = uiState.isSecretsLoading,
                 secretsError = uiState.secretsError,
+                isAddingSecret = uiState.isAddingSecret,
+                addSecretError = uiState.addSecretError,
                 onRefreshSecrets = {
                     uiState.selectedRepo?.fullName?.split("/")?.takeIf { it.size >= 2 }?.let {
                         viewModel.loadRepoSecrets(it[0], it[1])
@@ -600,6 +602,8 @@ private fun RepoDetailContent(
     secrets: List<RepoSecretItem>,
     isSecretsLoading: Boolean,
     secretsError: String?,
+    isAddingSecret: Boolean,
+    addSecretError: String?,
     onRefreshSecrets: () -> Unit,
     workflows: List<GitHubWorkflow>,
     isWorkflowsLoading: Boolean,
@@ -1077,6 +1081,8 @@ private fun RepoDetailContent(
     if (showAddSecretDialog) {
         AddSecretDialog(
             repoFullName = repo.fullName,
+            isSaving = isAddingSecret,
+            serverErrorMessage = addSecretError,
             onDismiss = { showAddSecretDialog = false },
             onConfirm = { name, value ->
                 onAddSecret(name, value) {
@@ -1090,6 +1096,8 @@ private fun RepoDetailContent(
     if (showBulkSecretsDialog) {
         AddBulkSecretsDialog(
             repoFullName = repo.fullName,
+            isSaving = isAddingSecret,
+            serverErrorMessage = addSecretError,
             onDismiss = { showBulkSecretsDialog = false },
             onConfirm = { rawText ->
                 onAddBulkSecrets(rawText) { count ->
@@ -2761,6 +2769,8 @@ private fun RunWorkflowDialog(
 @Composable
 private fun AddSecretDialog(
     repoFullName: String,
+    isSaving: Boolean,
+    serverErrorMessage: String?,
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit
 ) {
@@ -2841,6 +2851,9 @@ private fun AddSecretDialog(
                 if (errorMessage != null) {
                     Text(errorMessage!!, color = StatusError, fontSize = 11.sp)
                 }
+                if (!serverErrorMessage.isNullOrBlank()) {
+                    Text(serverErrorMessage, color = StatusError, fontSize = 11.sp)
+                }
             }
         },
         confirmButton = {
@@ -2857,10 +2870,12 @@ private fun AddSecretDialog(
                         onConfirm(clean, secretValue)
                     }
                 },
+                enabled = !isSaving,
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
                 modifier = Modifier.testTag("save_secret_btn")
             ) {
-                Text("Save Secret")
+                if (isSaving) CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(16.dp))
+                else Text("Save Secret")
             }
         },
         dismissButton = {
@@ -2872,6 +2887,8 @@ private fun AddSecretDialog(
 @Composable
 private fun AddBulkSecretsDialog(
     repoFullName: String,
+    isSaving: Boolean,
+    serverErrorMessage: String?,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
@@ -2932,6 +2949,10 @@ private fun AddBulkSecretsDialog(
                     )
                 )
 
+                if (!serverErrorMessage.isNullOrBlank()) {
+                    Text(serverErrorMessage, color = StatusError, style = MaterialTheme.typography.bodySmall)
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2957,11 +2978,12 @@ private fun AddBulkSecretsDialog(
         confirmButton = {
             Button(
                 onClick = { onConfirm(rawText) },
-                enabled = rawText.isNotBlank(),
+                enabled = rawText.isNotBlank() && !isSaving,
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
                 modifier = Modifier.testTag("import_bulk_secrets_btn")
             ) {
-                Text("Import All Secrets")
+                if (isSaving) CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(16.dp))
+                else Text("Import All Secrets")
             }
         },
         dismissButton = {
