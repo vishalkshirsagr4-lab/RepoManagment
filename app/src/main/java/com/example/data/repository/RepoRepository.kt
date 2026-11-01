@@ -224,7 +224,10 @@ class RepoRepository(
         sha: String?,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        val key = "$owner/$repo:$path"
+        val key = "$owner/$repo:$path" 
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before committing files."))
+        }
         dynamicDemoFiles[key] = content
 
         val ext = path.substringAfterLast('.', "")
@@ -323,7 +326,10 @@ class RepoRepository(
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
         val key = "$owner/$repo:$path"
-        dynamicDemoFiles.remove(key)
+        dynamicDemoFiles.remove(key) 
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before deleting files."))
+        }
         recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$path")
 
         val token = secureStorage.getGitHubToken()
@@ -380,7 +386,10 @@ class RepoRepository(
         commitMessage: String,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        val oldKey = "$owner/$repo:$oldPath"
+        val oldKey = "$owner/$repo:$oldPath" 
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before renaming files."))
+        }
         val newKey = "$owner/$repo:$newPath"
         val content = dynamicDemoFiles[oldKey] ?: ""
         dynamicDemoFiles.remove(oldKey)
@@ -475,7 +484,10 @@ class RepoRepository(
         commitMessage: String,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        val cleanOld = oldFolderPath.trim('/')
+        val cleanOld = oldFolderPath.trim('/') 
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before renaming folders."))
+        }
         val cleanNew = newFolderPath.trim('/')
         val token = secureStorage.getGitHubToken()
 
@@ -589,7 +601,10 @@ class RepoRepository(
         commitDescription: String?,
         changes: List<StagedChange>
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        if (changes.isEmpty()) {
+        if (changes.isEmpty()) { 
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before committing staged changes."))
+        }
             return@withContext Result.failure(Exception("No staged changes to commit."))
         }
 
