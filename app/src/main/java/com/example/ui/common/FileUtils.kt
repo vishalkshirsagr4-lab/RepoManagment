@@ -13,7 +13,7 @@ object FileUtils {
     )
 
     private val MEDIA_EXTENSIONS = setOf(
-        "mp4", "webm", "mov", "m4v", "mkv", "avi", "mp3", "wav", "m4a", "ogg", "flac", "aac"
+        "mp4", "webm", "mov", "m4v", "mkv", "avi", "3gp", "mp3", "wav", "m4a", "ogg", "flac", "aac", "opus"
     )
 
     fun isImage(fileName: String): Boolean {
@@ -49,8 +49,8 @@ object FileUtils {
             "pptx", "ppt" -> "PowerPoint Presentation"
             "zip", "tar", "gz", "rar", "7z" -> "Compressed Archive"
             "apk" -> "Android Application Package"
-            "mp4", "webm", "mov" -> "Video Stream"
-            "mp3", "wav", "ogg", "m4a" -> "Audio Recording"
+            "mp4", "webm", "mov", "m4v", "mkv", "avi", "3gp" -> "Video Stream"
+            "mp3", "wav", "ogg", "m4a", "flac", "aac", "opus" -> "Audio Recording"
             "kt" -> "Kotlin Source"
             "java" -> "Java Source"
             "py" -> "Python Script"
