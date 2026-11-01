@@ -385,32 +385,16 @@ class RepoRepository(
         commitMessage: String,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        val oldKey = "$owner/$repo:$oldPath" 
         if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
             return@withContext Result.failure(Exception("Connect your GitHub account before renaming files."))
         }
-        val newKey = "$owner/$repo:$newPath"
-        val content = dynamicDemoFiles[oldKey] ?: ""
-        dynamicDemoFiles.remove(oldKey)
-        dynamicDemoFiles[newKey] = content
-
-        recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$oldPath")
-        val ext = newPath.substringAfterLast('.', "")
-        recentFileDao.saveRecentFile(
-            RecentFileEntity(
-                fileKey = "$owner/$repo:${branch ?: "main"}:$newPath",
-                repoFullName = "$owner/$repo",
-                branch = branch ?: "main",
-                filePath = newPath,
-                fileName = newPath.substringAfterLast('/'),
-                language = ext,
-                lastModified = System.currentTimeMillis(),
-                isDirty = false
-            )
-        )
-
         val token = secureStorage.getGitHubToken()
         if (token.isNullOrBlank()) {
+            if (!isDemoMode()) return@withContext Result.failure(Exception("GitHub account connection required."))
+            val oldKey = "$owner/$repo:$oldPath"
+            val newKey = "$owner/$repo:$newPath"
+            val content = dynamicDemoFiles.remove(oldKey) ?: ""
+            dynamicDemoFiles[newKey] = content
             val newSha = "ren-" + (1000..9999).random()
             return@withContext Result.success(
                 PushResult(
@@ -432,7 +416,8 @@ class RepoRepository(
 
             // 1. Fetch old file to obtain content & SHA
             val oldItem = api.getFileContent(auth, owner, repo, cleanOld, branch)
-            val base64 = oldItem.content?.replace("\n", "")?.replace("\r", "") ?: ""
+            val base64 = oldItem.content?.replace("\n", "")?.replace("\r", "")
+                ?: return@withContext Result.failure(Exception("GitHub returned no content for $cleanOld."))
 
             // 2. Create new file with same content
             val createResp = api.createOrUpdateFile(
@@ -458,7 +443,16 @@ class RepoRepository(
                 branch = branch
             )
 
-            val commitSha = createResp.commit?.sha?.take(7) ?: "success"
+            recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$oldPath")
+            val ext = newPath.substringAfterLast('.', "")
+            recentFileDao.saveRecentFile(RecentFileEntity(
+                fileKey = "$owner/$repo:${branch ?: "main"}:$newPath",
+                repoFullName = "$owner/$repo", branch = branch ?: "main",
+                filePath = newPath, fileName = newPath.substringAfterLast('/'),
+                language = ext, lastModified = System.currentTimeMillis(), isDirty = false
+            ))
+            val commitSha = createResp.commit?.sha?.take(7)
+                ?: return@withContext Result.failure(Exception("GitHub did not return a commit SHA for the rename."))
             Result.success(
                 PushResult(
                     success = true,
