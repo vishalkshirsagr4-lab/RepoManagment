@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.example.data.security.SecureStorage
+import com.example.data.repository.StagedChangesManager
 import com.example.ui.navigation.MainAppContainer
 import com.example.ui.theme.DarkBg
 import com.example.ui.theme.RepoManagerProTheme
@@ -18,6 +19,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        StagedChangesManager.initialize(applicationContext)
 
         handleOAuthIntent(intent)
 
