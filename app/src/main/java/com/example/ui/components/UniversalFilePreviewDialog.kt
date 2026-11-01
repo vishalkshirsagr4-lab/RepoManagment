@@ -219,108 +219,14 @@ fun UniversalFilePreviewDialog(
                         }
                     }
 
-                    // 2. DOCUMENT PREVIEW (Word .docx, PDF, Excel .xlsx, Archives)
-                    isDoc -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = DarkElevatedSurface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                val (docColor, docIcon) = when (ext) {
-                                    "pdf" -> Pair(Color(0xFFEF4444), Icons.Default.PictureAsPdf)
-                                    "docx", "doc" -> Pair(Color(0xFF3B82F6), Icons.Default.Description)
-                                    "xlsx", "xls" -> Pair(Color(0xFF10B981), Icons.Default.TableChart)
-                                    "zip", "tar", "gz", "rar", "7z" -> Pair(Color(0xFFA855F7), Icons.Default.Archive)
-                                    else -> Pair(SecondaryCyan, Icons.Default.Description)
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(CircleShape)
-                                        .background(docColor.copy(alpha = 0.15f))
-                                        .border(1.dp, docColor.copy(alpha = 0.4f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = docIcon,
-                                        contentDescription = null,
-                                        tint = docColor,
-                                        modifier = Modifier.size(30.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = item.name,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = FileUtils.getFileTypeLabel(item.name),
-                                    fontSize = 12.sp,
-                                    color = docColor
-                                )
-
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(DarkBg)
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = "Original binary structure preserved • Clean format verified",
-                                        fontSize = 10.sp,
-                                        color = TextSecondary,
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. MEDIA (Audio / Video)
-                    isMedia -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = DarkElevatedSurface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(CircleShape)
-                                        .background(PrimaryPurple.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (ext in listOf("mp4", "webm", "mov")) Icons.Default.Movie else Icons.Default.MusicNote,
-                                        contentDescription = null,
-                                        tint = PrimaryPurple,
-                                        modifier = Modifier.size(30.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(text = item.name, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                Text(text = "Media Asset (${ext.uppercase()})", fontSize = 11.sp, color = SecondaryCyan)
-                            }
-                        }
+                    // 2. DOCUMENT / AUDIO / VIDEO: render real contents or playback controls.
+                    isDoc || isMedia -> {
+                        RichFilePreview(
+                            fileName = item.name,
+                            sourceUrl = rawUrl,
+                            token = token,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
 
                     // 4. CODE / TEXT / RAW CONTENT

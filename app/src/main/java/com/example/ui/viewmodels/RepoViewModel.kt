@@ -774,7 +774,8 @@ fun loadRepoSecrets(owner: String, repo: String) {
                 loadRepoSecrets(owner, repo)
             } else {
                 _uiState.value = _uiState.value.copy(
-                    statusMessage = "Could not delete '$secretName'"
+                    statusMessage = result.exceptionOrNull()?.message
+                        ?: "Could not delete '$secretName'"
                 )
             }
         }

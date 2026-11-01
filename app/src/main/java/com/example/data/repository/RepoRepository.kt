@@ -592,7 +592,8 @@ class RepoRepository(
                 path = cleanPath,
                 body = request
             )
-            val commitSha = response.commit?.sha?.take(7) ?: "success"
+            val commitSha = response.commit?.sha?.take(7)
+                ?: return@withContext Result.failure(Exception("GitHub did not return a commit SHA for the uploaded file."))
             Result.success("Uploaded $cleanPath ($commitSha)")
         } catch (e: Exception) {
             Result.failure(e)
@@ -763,7 +764,7 @@ class RepoRepository(
             } else {
                 branch
             }
-            api.updateBranchRef(
+            val updateResponse = api.updateBranchRef(
                 auth = auth,
                 owner = owner,
                 repo = repo,
@@ -773,6 +774,11 @@ class RepoRepository(
                     force = false
                 )
             )
+            if (updateResponse.`object`.sha != newCommit.sha) {
+                return@withContext Result.failure(
+                    Exception("GitHub did not confirm that branch '$targetBranchName' points to the new commit.")
+                )
+            }
 
             val commitShortSha = newCommit.sha.take(7)
             StagedChangesManager.clearStagedChanges(repoFullName)
@@ -918,101 +924,80 @@ class RepoRepository(
                 Result.failure(e)
             }
         }
-// Repository Action Secrets Management
-suspend fun getRepoSecrets(
-    owner: String,
-    repo: String
-): Result<List<RepoSecretItem>> = withContext(Dispatchers.IO) {
+    // Repository Action Secrets Management
+    suspend fun getRepoSecrets(
+        owner: String,
+        repo: String
+    ): Result<List<RepoSecretItem>> = withContext(Dispatchers.IO) {
+        val fullName = "$owner/$repo"
+        val token = secureStorage.getGitHubToken()
 
-    val token = secureStorage.getGitHubToken()
+        if (token.isNullOrBlank()) {
+            if (!isDemoMode()) {
+                return@withContext Result.failure(
+                    Exception("GitHub token is missing. Connect your GitHub account to view repository secrets.")
+                )
+            }
 
-    if (token.isNullOrBlank()) {
-        return@withContext Result.failure(
-            Exception("GitHub token is missing. Please configure your token.")
-        )
-    }
-
-    try {
-        val allSecrets = mutableListOf<RepoSecretItem>()
-        var page = 1
-        var totalCount: Int
-
-        do {
-            val response = api.getRepoSecrets(
-                auth = "Bearer $token",
-                owner = owner,
-                repo = repo,
-                perPage = 100,
-                page = page
+            val demoSecrets = listOf(
+                RepoSecretItem("DATABASE_URL", isLocal = true),
+                RepoSecretItem("CLOUDFLARE_API_KEY", isLocal = true),
+                RepoSecretItem("NEXT_PUBLIC_APP_URL", isLocal = true),
+                RepoSecretItem("PRODUCTION_SIGNING_KEY", isLocal = true)
             )
+            val local = loadLocalSecrets(fullName)
+            return@withContext Result.success(
+                (demoSecrets.associateBy { it.name } + local).values.sortedBy { it.name }
+            )
+        }
 
-            totalCount = response.totalCount
+        try {
+            val remoteSecrets = mutableListOf<RepoSecretItem>()
+            var page = 1
+            var totalCount: Int
 
-            response.secrets.forEach { secret ->
-                allSecrets.add(
-                    RepoSecretItem(
-                        name = secret.name,
-                        createdAt = secret.createdAt,
-                        updatedAt = secret.updatedAt,
-                        isLocal = false
+            do {
+                val response = api.getRepoSecrets(
+                    auth = "Bearer $token",
+                    owner = owner,
+                    repo = repo,
+                    perPage = 100,
+                    page = page
+                )
+                totalCount = response.totalCount
+                response.secrets.forEach { secret ->
+                    remoteSecrets.add(
+                        RepoSecretItem(
+                            name = secret.name,
+                            createdAt = secret.createdAt,
+                            updatedAt = secret.updatedAt,
+                            isLocal = false
+                        )
                     )
-                )
-            }
-
-            page++
-
-        } while (allSecrets.size < totalCount && page <= 20)
-
-        Result.success(allSecrets.sortedBy { it.name })
-
-    } catch (e: retrofit2.HttpException) {
-
-        val message = when (e.code()) {
-            401 -> "Authentication failed. Check your GitHub token."
-            403 -> "Access denied. Check your GitHub Secrets permission."
-            404 -> "Repository not found or token cannot access it."
-            422 -> "GitHub rejected the request."
-            else -> "GitHub API error: HTTP ${e.code()}"
-        }
-
-        Result.failure(Exception(message, e))
-
-    } catch (e: java.io.IOException) {
-
-        Result.failure(
-            Exception("Network error. Check your internet connection.", e)
-        )
-
-    } catch (e: Exception) {
-
-        Result.failure(
-            Exception("Failed to fetch secrets: ${e.message}", e)
-        )
-    }
-}
-
-            // Read local encrypted vault
-            val localSecrets = loadLocalSecrets(fullName)
-            val combined = mutableMapOf<String, RepoSecretItem>()
-            remoteSecrets.forEach { combined[it.name] = it }
-            localSecrets.forEach { (name, item) ->
-                if (!combined.containsKey(name)) {
-                    combined[name] = item
                 }
-            }
+                page++
+            } while (remoteSecrets.size < totalCount && page <= 20)
 
-            if (combined.isEmpty() && (isDemoMode() || token.isNullOrBlank())) {
-                val demoDefaults = listOf(
-                    RepoSecretItem("DATABASE_URL", "2026-10-15T12:00:00Z", "2026-10-15T12:00:00Z", false),
-                    RepoSecretItem("CLOUDFLARE_API_KEY", "2026-10-18T08:30:00Z", "2026-10-18T08:30:00Z", false),
-                    RepoSecretItem("NEXT_PUBLIC_APP_URL", "2026-10-20T14:15:00Z", "2026-10-20T14:15:00Z", false),
-                    RepoSecretItem("PRODUCTION_SIGNING_KEY", "2026-10-22T09:45:00Z", "2026-10-22T09:45:00Z", false)
-                )
-                demoDefaults.forEach { combined[it.name] = it }
+            val combined = remoteSecrets.associateBy { it.name }.toMutableMap()
+            loadLocalSecrets(fullName).forEach { (name, item) ->
+                if (name !in combined) combined[name] = item
             }
-
-            Result.success(combined.values.toList().sortedBy { it.name })
+            Result.success(combined.values.sortedBy { it.name })
+        } catch (e: retrofit2.HttpException) {
+            val message = when (e.code()) {
+                401 -> "Authentication failed. Check your GitHub token."
+                403 -> "Access denied. Your token needs repository Actions secrets read permission."
+                404 -> "Repository not found or your token cannot access it."
+                422 -> "GitHub rejected the secrets request."
+                else -> "GitHub API error: HTTP ${e.code()}"
+            }
+            Result.failure(Exception(message, e))
+        } catch (e: java.io.IOException) {
+            Result.failure(Exception("Network error while loading repository secrets. Check your connection.", e))
+        } catch (e: Exception) {
+            Result.failure(Exception("Failed to fetch repository secrets: ${e.message}", e))
         }
+    }
 
     suspend fun addOrUpdateSecret(
         owner: String,
@@ -1021,26 +1006,73 @@ suspend fun getRepoSecrets(
         value: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val cleanName = name.trim().uppercase()
-        if (cleanName.isBlank()) {
-            return@withContext Result.failure(Exception("Secret name cannot be blank."))
+        if (!cleanName.matches(Regex("[A-Z_][A-Z0-9_]*"))) {
+            return@withContext Result.failure(
+                Exception("Secret name must start with a letter or underscore and contain only A-Z, 0-9, and underscores.")
+            )
         }
-        val fullName = "$owner/$repo"
         val token = secureStorage.getGitHubToken()
+            ?: return@withContext Result.failure(
+                Exception("Connect your GitHub account before creating repository secrets.")
+            )
 
-        var remoteSuccess = false
-        if (!token.isNullOrBlank()) {
-            try {
-                val pubKey = api.getRepoPublicKey("Bearer $token", owner, repo)
-                return@withContext Result.failure(Exception("GitHub secrets require libsodium sealed-box encryption. Base64 encoding is not encryption, so no secret was uploaded."))
-            } catch (e: Exception) {
-                return@withContext Result.failure(Exception("Unable to prepare GitHub secret: " + e.message, e))
+        try {
+            val publicKey = api.getRepoPublicKey("Bearer $token", owner, repo)
+            val recipientKey = android.util.Base64.decode(publicKey.key, android.util.Base64.DEFAULT)
+            if (publicKey.keyId.isBlank() || recipientKey.size != 32) {
+                return@withContext Result.failure(
+                    Exception("GitHub returned an invalid Actions public key.")
+                )
             }
-        } else if (!isDemoMode()) {
-            return@withContext Result.failure(Exception("Connect your GitHub account before managing repository secrets."))
-        }
 
-        // Always store securely in encrypted device vault so secret is preserved
-        Result.failure(Exception("Secret was not saved because secure GitHub encryption is not implemented."))
+            val plainBytes = value.toByteArray(Charsets.UTF_8)
+            val cipherBytes = ByteArray(plainBytes.size + 48) // crypto_box_SEALBYTES
+            val sodium = com.goterl.lazysodium.LazySodiumAndroid(
+                com.goterl.lazysodium.SodiumAndroid()
+            )
+            val encrypted = sodium.cryptoBoxSeal(
+                cipherBytes,
+                plainBytes,
+                plainBytes.size.toLong(),
+                recipientKey
+            )
+            if (!encrypted) {
+                return@withContext Result.failure(
+                    Exception("Libsodium could not encrypt the secret. Nothing was sent to GitHub.")
+                )
+            }
+
+            val response = api.createOrUpdateRepoSecret(
+                auth = "Bearer $token",
+                owner = owner,
+                repo = repo,
+                secretName = cleanName,
+                body = CreateSecretBody(
+                    encryptedValue = android.util.Base64.encodeToString(
+                        cipherBytes,
+                        android.util.Base64.NO_WRAP
+                    ),
+                    keyId = publicKey.keyId
+                )
+            )
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(
+                    Exception("GitHub rejected secret '$cleanName': HTTP ${response.code()}")
+                )
+            }
+
+            Result.success(Unit)
+        } catch (e: retrofit2.HttpException) {
+            val message = when (e.code()) {
+                401 -> "Authentication failed. Check your GitHub token."
+                403 -> "Permission denied. Your token needs repository Actions secrets write access."
+                404 -> "Repository or Actions public key was not found."
+                else -> "GitHub secret API error: HTTP ${e.code()}"
+            }
+            Result.failure(Exception(message, e))
+        } catch (e: Exception) {
+            Result.failure(Exception("Unable to encrypt or save GitHub secret: ${e.message}", e))
+        }
     }
 
     suspend fun addBulkSecrets(
@@ -1091,11 +1123,21 @@ suspend fun getRepoSecrets(
             return@withContext Result.failure(Exception("No valid KEY=VALUE secrets found in text."))
         }
 
-        parsedPairs.forEach { (k, v) ->
-            addOrUpdateSecret(owner, repo, k, v)
-            addedCount++
+        val failedNames = mutableListOf<String>()
+        parsedPairs.forEach { (key, secretValue) ->
+            val result = addOrUpdateSecret(owner, repo, key, secretValue)
+            if (result.isSuccess) {
+                addedCount++
+            } else {
+                failedNames.add(key)
+            }
         }
 
+        if (failedNames.isNotEmpty()) {
+            return@withContext Result.failure(
+                Exception("Saved $addedCount of ${parsedPairs.size} secrets. Failed: ${failedNames.joinToString()}. Check GitHub permissions and Actions settings.")
+            )
+        }
         Result.success(addedCount)
     }
 

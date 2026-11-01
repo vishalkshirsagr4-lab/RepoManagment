@@ -88,6 +88,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+import com.example.data.security.SecureStorage
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.BookmarkAdded
 import androidx.compose.material.icons.filled.CloudUpload
@@ -101,6 +104,7 @@ import androidx.compose.material.icons.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.TableChart
 import com.example.ui.common.FileUtils
 import com.example.ui.components.BatchCommitAndPushDialog
+import com.example.ui.components.RichFilePreview
 import com.example.ui.components.PushStatusDialog
 import com.example.ui.components.RenameItemDialog
 import com.example.ui.components.getFileIcon
@@ -216,6 +220,9 @@ fun EditorScreen(
 
                 // Center/Right: Git Compare, Stage File, and Batch Commit & Push
                 Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -345,24 +352,21 @@ fun EditorScreen(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Review & Push",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryCyan,
-                        modifier = Modifier
-                            .clickable { viewModel.showBatchCommitDialog(true) }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Clear",
-                        fontSize = 11.sp,
-                        color = StatusError,
-                        modifier = Modifier
-                            .clickable { viewModel.clearAllStaged() }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                    TextButton(
+                        onClick = { viewModel.showBatchCommitDialog(true) }
+                    ) {
+                        Text(
+                            text = "Review & Push",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SecondaryCyan
+                        )
+                    }
+                    TextButton(
+                        onClick = { viewModel.clearAllStaged() }
+                    ) {
+                        Text("Clear", fontSize = 12.sp, color = StatusError)
+                    }
                 }
             }
         }
@@ -458,7 +462,7 @@ fun EditorScreen(
             if (activeTab != null) {
                 IconButton(
                     onClick = { showRenameDialog = true },
-                    modifier = Modifier.size(28.dp).testTag("editor_toolbar_rename_btn")
+                    modifier = Modifier.size(40.dp).testTag("editor_toolbar_rename_btn")
                 ) {
                     Icon(
                         Icons.Default.DriveFileRenameOutline,
@@ -470,13 +474,13 @@ fun EditorScreen(
             }
             IconButton(
                 onClick = { viewModel.undo() },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(Icons.Default.Undo, contentDescription = "Undo", tint = TextSecondary, modifier = Modifier.size(16.dp))
             }
             IconButton(
                 onClick = { viewModel.toggleSearch(!uiState.isSearching) },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
                     Icons.Default.Search,
@@ -487,7 +491,7 @@ fun EditorScreen(
             }
             IconButton(
                 onClick = { viewModel.toggleReplace() },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
                     Icons.Default.FindReplace,
@@ -498,7 +502,7 @@ fun EditorScreen(
             }
             IconButton(
                 onClick = { viewModel.toggleWordWrap() },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
                     Icons.Default.WrapText,
@@ -513,13 +517,13 @@ fun EditorScreen(
                         clipboardManager.setText(AnnotatedString(activeTab.content))
                     }
                 },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = TextSecondary, modifier = Modifier.size(16.dp))
             }
             IconButton(
                 onClick = { keyboardController?.hide() },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(Icons.Default.KeyboardHide, contentDescription = "Hide Keyboard", tint = SecondaryCyan, modifier = Modifier.size(16.dp))
             }
@@ -1062,6 +1066,21 @@ private fun BinaryAssetEditorPane(
     val typeLabel = FileUtils.getFileTypeLabel(tab.fileName)
 
     val rawUrl = "https://raw.githubusercontent.com/${tab.repoFullName}/${tab.branch}/${tab.filePath}"
+    val context = LocalContext.current
+    val githubToken = remember(tab.repoFullName, tab.branch) {
+        SecureStorage.getInstance(context).getGitHubToken()
+    }
+    val authenticatedImageRequest = remember(rawUrl, githubToken) {
+        ImageRequest.Builder(context)
+            .data(rawUrl)
+            .apply {
+                if (!githubToken.isNullOrBlank()) {
+                    addHeader("Authorization", "Bearer $githubToken")
+                }
+            }
+            .crossfade(true)
+            .build()
+    }
 
     // Decode bitmap from Base64 if available
     val bitmap = remember(tab.content) {
@@ -1194,7 +1213,7 @@ private fun BinaryAssetEditorPane(
                         )
                     } else {
                         AsyncImage(
-                            model = rawUrl,
+                            model = authenticatedImageRequest,
                             contentDescription = tab.fileName,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
@@ -1202,67 +1221,25 @@ private fun BinaryAssetEditorPane(
                     }
                 }
             }
+        } else if (isDoc || isMedia) {
+            RichFilePreview(
+                fileName = tab.fileName,
+                sourceUrl = rawUrl,
+                token = githubToken,
+                modifier = Modifier.fillMaxWidth()
+            )
         } else {
-            // Document / Media / Binary Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isDoc) StatusSuccess.copy(alpha = 0.15f)
-                                else SecondaryCyan.copy(alpha = 0.15f)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = when {
-                                tab.fileName.endsWith(".pdf", ignoreCase = true) -> Icons.Default.PictureAsPdf
-                                tab.fileName.endsWith(".xlsx", ignoreCase = true) || tab.fileName.endsWith(".xls", ignoreCase = true) -> Icons.Default.TableChart
-                                tab.fileName.endsWith(".zip", ignoreCase = true) || tab.fileName.endsWith(".tar", ignoreCase = true) -> Icons.Default.Archive
-                                isDoc -> Icons.Default.Description
-                                tab.fileName.endsWith(".mp4", ignoreCase = true) -> Icons.Default.Movie
-                                isMedia -> Icons.Default.MusicNote
-                                else -> Icons.Default.Description
-                            },
-                            contentDescription = null,
-                            tint = if (isDoc) StatusSuccess else SecondaryCyan,
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-
-                    Text(
-                        text = tab.fileName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        text = "Native Binary & Formatted Document",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = SecondaryCyan
-                    )
-
-                    Text(
-                        text = "This file is handled as clean binary data to protect document integrity. Editing as raw text is prevented to avoid corrupting document signatures or encoding.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                }
+                Text(
+                    text = "Binary preview is not available for this file type.",
+                    color = TextSecondary,
+                    modifier = Modifier.padding(20.dp)
+                )
             }
         }
 
@@ -1414,7 +1391,7 @@ private fun GitDiffCanvas(
                     ) {
                         Text("-$del lines", fontSize = 11.sp, color = StatusError, fontWeight = FontWeight.Bold)
                     }
-                    IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Default.Close, contentDescription = "Exit Diff", tint = TextSecondary, modifier = Modifier.size(16.dp))
                     }
                 }

@@ -189,6 +189,14 @@ fun RepositoriesScreen(
                 },
                 secrets = uiState.secrets,
                 isSecretsLoading = uiState.isSecretsLoading,
+                secretsError = uiState.secretsError,
+                isAddingSecret = uiState.isAddingSecret,
+                addSecretError = uiState.addSecretError,
+                onRefreshSecrets = {
+                    uiState.selectedRepo?.fullName?.split("/")?.takeIf { it.size >= 2 }?.let {
+                        viewModel.loadRepoSecrets(it[0], it[1])
+                    }
+                },
                 workflows = uiState.workflows,
                 isWorkflowsLoading = uiState.isWorkflowsLoading,
                 checkRuns = uiState.checkRuns,
@@ -593,6 +601,10 @@ private fun RepoDetailContent(
     onDownloadZip: () -> Unit,
     secrets: List<RepoSecretItem>,
     isSecretsLoading: Boolean,
+    secretsError: String?,
+    isAddingSecret: Boolean,
+    addSecretError: String?,
+    onRefreshSecrets: () -> Unit,
     workflows: List<GitHubWorkflow>,
     isWorkflowsLoading: Boolean,
     checkRuns: List<GitHubCheckRun>,
@@ -948,6 +960,8 @@ private fun RepoDetailContent(
             4 -> RepoSecretsTab(
                 secrets = secrets,
                 isLoading = isSecretsLoading,
+                errorMessage = secretsError,
+                onRetry = onRefreshSecrets,
                 onAddSecretClick = { showAddSecretDialog = true },
                 onBulkSecretsClick = { showBulkSecretsDialog = true },
                 onDeleteSecretClick = { sec -> deletingSecret = sec }
@@ -1067,6 +1081,8 @@ private fun RepoDetailContent(
     if (showAddSecretDialog) {
         AddSecretDialog(
             repoFullName = repo.fullName,
+            isSaving = isAddingSecret,
+            serverErrorMessage = addSecretError,
             onDismiss = { showAddSecretDialog = false },
             onConfirm = { name, value ->
                 onAddSecret(name, value) {
@@ -1080,6 +1096,8 @@ private fun RepoDetailContent(
     if (showBulkSecretsDialog) {
         AddBulkSecretsDialog(
             repoFullName = repo.fullName,
+            isSaving = isAddingSecret,
+            serverErrorMessage = addSecretError,
             onDismiss = { showBulkSecretsDialog = false },
             onConfirm = { rawText ->
                 onAddBulkSecrets(rawText) { count ->
@@ -2446,6 +2464,8 @@ private fun ActionsWorkflowsTab(
 private fun RepoSecretsTab(
     secrets: List<RepoSecretItem>,
     isLoading: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
     onAddSecretClick: () -> Unit,
     onBulkSecretsClick: () -> Unit,
     onDeleteSecretClick: (RepoSecretItem) -> Unit
@@ -2537,8 +2557,28 @@ private fun RepoSecretsTab(
             }
         }
 
-        // List of Secrets
-        if (secrets.isEmpty() && !isLoading) {
+        // Surface permission/network/API failures distinctly from a genuine empty secret list.
+        if (!errorMessage.isNullOrBlank()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = StatusError.copy(alpha = 0.10f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, StatusError.copy(alpha = 0.45f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Could not load GitHub Actions secrets", color = StatusError, fontWeight = FontWeight.Bold)
+                        Text(errorMessage, color = TextPrimary, style = MaterialTheme.typography.bodySmall)
+                        Button(onClick = onRetry, enabled = !isLoading) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
+        } else if (secrets.isEmpty() && !isLoading) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -2729,6 +2769,8 @@ private fun RunWorkflowDialog(
 @Composable
 private fun AddSecretDialog(
     repoFullName: String,
+    isSaving: Boolean,
+    serverErrorMessage: String?,
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit
 ) {
@@ -2809,6 +2851,9 @@ private fun AddSecretDialog(
                 if (errorMessage != null) {
                     Text(errorMessage!!, color = StatusError, fontSize = 11.sp)
                 }
+                if (!serverErrorMessage.isNullOrBlank()) {
+                    Text(serverErrorMessage, color = StatusError, fontSize = 11.sp)
+                }
             }
         },
         confirmButton = {
@@ -2825,10 +2870,12 @@ private fun AddSecretDialog(
                         onConfirm(clean, secretValue)
                     }
                 },
+                enabled = !isSaving,
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
                 modifier = Modifier.testTag("save_secret_btn")
             ) {
-                Text("Save Secret")
+                if (isSaving) CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(16.dp))
+                else Text("Save Secret")
             }
         },
         dismissButton = {
@@ -2840,6 +2887,8 @@ private fun AddSecretDialog(
 @Composable
 private fun AddBulkSecretsDialog(
     repoFullName: String,
+    isSaving: Boolean,
+    serverErrorMessage: String?,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
@@ -2900,6 +2949,10 @@ private fun AddBulkSecretsDialog(
                     )
                 )
 
+                if (!serverErrorMessage.isNullOrBlank()) {
+                    Text(serverErrorMessage, color = StatusError, style = MaterialTheme.typography.bodySmall)
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2925,11 +2978,12 @@ private fun AddBulkSecretsDialog(
         confirmButton = {
             Button(
                 onClick = { onConfirm(rawText) },
-                enabled = rawText.isNotBlank(),
+                enabled = rawText.isNotBlank() && !isSaving,
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
                 modifier = Modifier.testTag("import_bulk_secrets_btn")
             ) {
-                Text("Import All Secrets")
+                if (isSaving) CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(16.dp))
+                else Text("Import All Secrets")
             }
         },
         dismissButton = {
