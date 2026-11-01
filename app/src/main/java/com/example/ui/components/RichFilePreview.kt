@@ -77,7 +77,7 @@ fun RichFilePreview(
 ) {
     val context = LocalContext.current
     val extension = fileName.substringAfterLast('.', "").lowercase()
-    val isVideo = extension in setOf("mp4", "m4v", "webm", "mkv", "mov", "3gp")
+    val isVideo = extension in setOf("mp4", "m4v", "webm", "mkv", "mov", "3gp", "avi")
     val isAudio = extension in setOf("mp3", "m4a", "aac", "wav", "ogg", "flac", "opus")
     if (isVideo || isAudio) {
         MediaFilePreview(sourceUrl, token, isVideo, modifier)
@@ -118,11 +118,11 @@ fun RichFilePreview(
                 }
             }
             downloadedFile = file
-            if (extension == "docx" || extension == "xlsx") {
+            if (extension in setOf("docx", "xlsx", "pptx", "odt", "ods", "odp", "rtf")) {
                 extractedText = withContext(Dispatchers.IO) { extractOfficeText(file, extension) }
             } else if (extension != "pdf") {
                 error = when (extension) {
-                    "doc", "xls" -> "Legacy .doc and .xls binary formats are not supported yet. Save as .docx or .xlsx to preview the contents."
+                    "doc", "xls", "ppt" -> "Legacy binary Office files are not supported yet. Save this file as DOCX, XLSX, or PPTX to preview its contents."
                     else -> "This document format does not have an in-app renderer yet."
                 }
             }
@@ -303,6 +303,18 @@ private fun PdfPagePreview(file: File) {
 }
 
 private fun extractOfficeText(file: File, extension: String): String {
+    if (extension == "rtf") {
+        val source = file.readText(Charsets.UTF_8)
+        return source
+            .replace(Regex("""\\\\'[0-9a-fA-F]{2}"""), " ")
+            .replace(Regex("""\\\\par[d]?"""), "\\n")
+            .replace(Regex("""\\\\[a-zA-Z]+-?\\d* ?"""), " ")
+            .replace(Regex("[{}]"), "")
+            .replace(Regex("[ \\t]+"), " ")
+            .trim()
+            .ifBlank { "The RTF document contains no readable text." }
+    }
+
     val entries = mutableMapOf<String, String>()
     ZipInputStream(file.inputStream().buffered()).use { zip ->
         while (true) {
@@ -310,7 +322,9 @@ private fun extractOfficeText(file: File, extension: String): String {
             if (!entry.isDirectory && (
                 entry.name == "word/document.xml" ||
                 entry.name == "xl/sharedStrings.xml" ||
-                entry.name.startsWith("xl/worksheets/sheet") && entry.name.endsWith(".xml")
+                entry.name.startsWith("xl/worksheets/sheet") && entry.name.endsWith(".xml") ||
+                entry.name.startsWith("ppt/slides/slide") && entry.name.endsWith(".xml") ||
+                entry.name == "content.xml"
             )) {
                 entries[entry.name] = zip.readBytes().toString(Charsets.UTF_8)
             }
@@ -332,6 +346,22 @@ private fun extractOfficeText(file: File, extension: String): String {
     if (extension == "docx") {
         val xml = entries["word/document.xml"]
             ?: throw IllegalStateException("The DOCX file has no word/document.xml content.")
+        return xmlText(xml).ifBlank { "The document contains no readable text." }
+    }
+
+    if (extension == "pptx") {
+        val slides = entries.filterKeys {
+            it.startsWith("ppt/slides/slide") && it.endsWith(".xml")
+        }.toSortedMap()
+        if (slides.isEmpty()) throw IllegalStateException("The PPTX file contains no readable slides.")
+        return slides.entries.joinToString("\\n\\n") { (name, xml) ->
+            "${name.substringAfterLast('/').removeSuffix(".xml")}:\\n" + xmlText(xml)
+        }
+    }
+
+    if (extension in setOf("odt", "ods", "odp")) {
+        val xml = entries["content.xml"]
+            ?: throw IllegalStateException("The OpenDocument file has no content.xml entry.")
         return xmlText(xml).ifBlank { "The document contains no readable text." }
     }
 
