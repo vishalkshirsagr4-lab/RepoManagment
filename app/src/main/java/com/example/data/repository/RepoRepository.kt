@@ -1123,11 +1123,21 @@ class RepoRepository(
             return@withContext Result.failure(Exception("No valid KEY=VALUE secrets found in text."))
         }
 
-        parsedPairs.forEach { (k, v) ->
-            addOrUpdateSecret(owner, repo, k, v)
-            addedCount++
+        val failedNames = mutableListOf<String>()
+        parsedPairs.forEach { (key, secretValue) ->
+            val result = addOrUpdateSecret(owner, repo, key, secretValue)
+            if (result.isSuccess) {
+                addedCount++
+            } else {
+                failedNames.add(key)
+            }
         }
 
+        if (failedNames.isNotEmpty()) {
+            return@withContext Result.failure(
+                Exception("Saved $addedCount of ${parsedPairs.size} secrets. Failed: ${failedNames.joinToString()}. Check GitHub permissions and Actions settings.")
+            )
+        }
         Result.success(addedCount)
     }
 
