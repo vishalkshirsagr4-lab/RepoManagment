@@ -50,6 +50,7 @@ data class RepositoriesUiState(
     val latestWorkflowJobs: List<WorkflowJob> = emptyList(),
     val secrets: List<RepoSecretItem> = emptyList(),
     val isSecretsLoading: Boolean = false,
+    val secretsError: String? = null,
     val isAddingSecret: Boolean = false,
     val addSecretError: String? = null,
     val workflows: List<GitHubWorkflow> = emptyList(),
