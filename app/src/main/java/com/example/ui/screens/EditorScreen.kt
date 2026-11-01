@@ -220,6 +220,9 @@ fun EditorScreen(
 
                 // Center/Right: Git Compare, Stage File, and Batch Commit & Push
                 Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -349,24 +352,21 @@ fun EditorScreen(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Review & Push",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryCyan,
-                        modifier = Modifier
-                            .clickable { viewModel.showBatchCommitDialog(true) }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Clear",
-                        fontSize = 11.sp,
-                        color = StatusError,
-                        modifier = Modifier
-                            .clickable { viewModel.clearAllStaged() }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                    TextButton(
+                        onClick = { viewModel.showBatchCommitDialog(true) }
+                    ) {
+                        Text(
+                            text = "Review & Push",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SecondaryCyan
+                        )
+                    }
+                    TextButton(
+                        onClick = { viewModel.clearAllStaged() }
+                    ) {
+                        Text("Clear", fontSize = 12.sp, color = StatusError)
+                    }
                 }
             }
         }
