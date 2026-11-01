@@ -104,6 +104,7 @@ import androidx.compose.material.icons.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.TableChart
 import com.example.ui.common.FileUtils
 import com.example.ui.components.BatchCommitAndPushDialog
+import com.example.ui.components.RichFilePreview
 import com.example.ui.components.PushStatusDialog
 import com.example.ui.components.RenameItemDialog
 import com.example.ui.components.getFileIcon
@@ -1220,67 +1221,25 @@ private fun BinaryAssetEditorPane(
                     }
                 }
             }
+        } else if (isDoc || isMedia) {
+            RichFilePreview(
+                fileName = tab.fileName,
+                sourceUrl = rawUrl,
+                token = githubToken,
+                modifier = Modifier.fillMaxWidth()
+            )
         } else {
-            // Document / Media / Binary Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isDoc) StatusSuccess.copy(alpha = 0.15f)
-                                else SecondaryCyan.copy(alpha = 0.15f)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = when {
-                                tab.fileName.endsWith(".pdf", ignoreCase = true) -> Icons.Default.PictureAsPdf
-                                tab.fileName.endsWith(".xlsx", ignoreCase = true) || tab.fileName.endsWith(".xls", ignoreCase = true) -> Icons.Default.TableChart
-                                tab.fileName.endsWith(".zip", ignoreCase = true) || tab.fileName.endsWith(".tar", ignoreCase = true) -> Icons.Default.Archive
-                                isDoc -> Icons.Default.Description
-                                tab.fileName.endsWith(".mp4", ignoreCase = true) -> Icons.Default.Movie
-                                isMedia -> Icons.Default.MusicNote
-                                else -> Icons.Default.Description
-                            },
-                            contentDescription = null,
-                            tint = if (isDoc) StatusSuccess else SecondaryCyan,
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-
-                    Text(
-                        text = tab.fileName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        text = "Native Binary & Formatted Document",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = SecondaryCyan
-                    )
-
-                    Text(
-                        text = "This file is handled as clean binary data to protect document integrity. Editing as raw text is prevented to avoid corrupting document signatures or encoding.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                }
+                Text(
+                    text = "Binary preview is not available for this file type.",
+                    color = TextSecondary,
+                    modifier = Modifier.padding(20.dp)
+                )
             }
         }
 
