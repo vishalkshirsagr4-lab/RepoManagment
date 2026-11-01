@@ -11,7 +11,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+// Robolectric's Android 16 (API 36) SDK provider currently fails in this CI environment.
+// API 35 is sufficient for these resource and pure Kotlin highlighting tests.
+@Config(sdk = [35])
 class ExampleRobolectricTest {
 
     @Test
