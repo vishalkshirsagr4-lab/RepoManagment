@@ -1006,26 +1006,73 @@ class RepoRepository(
         value: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val cleanName = name.trim().uppercase()
-        if (cleanName.isBlank()) {
-            return@withContext Result.failure(Exception("Secret name cannot be blank."))
+        if (!cleanName.matches(Regex("[A-Z_][A-Z0-9_]*"))) {
+            return@withContext Result.failure(
+                Exception("Secret name must start with a letter or underscore and contain only A-Z, 0-9, and underscores.")
+            )
         }
-        val fullName = "$owner/$repo"
         val token = secureStorage.getGitHubToken()
+            ?: return@withContext Result.failure(
+                Exception("Connect your GitHub account before creating repository secrets.")
+            )
 
-        var remoteSuccess = false
-        if (!token.isNullOrBlank()) {
-            try {
-                val pubKey = api.getRepoPublicKey("Bearer $token", owner, repo)
-                return@withContext Result.failure(Exception("GitHub secrets require libsodium sealed-box encryption. Base64 encoding is not encryption, so no secret was uploaded."))
-            } catch (e: Exception) {
-                return@withContext Result.failure(Exception("Unable to prepare GitHub secret: " + e.message, e))
+        try {
+            val publicKey = api.getRepoPublicKey("Bearer $token", owner, repo)
+            val recipientKey = android.util.Base64.decode(publicKey.key, android.util.Base64.DEFAULT)
+            if (publicKey.keyId.isBlank() || recipientKey.size != 32) {
+                return@withContext Result.failure(
+                    Exception("GitHub returned an invalid Actions public key.")
+                )
             }
-        } else if (!isDemoMode()) {
-            return@withContext Result.failure(Exception("Connect your GitHub account before managing repository secrets."))
-        }
 
-        // Always store securely in encrypted device vault so secret is preserved
-        Result.failure(Exception("Secret was not saved because secure GitHub encryption is not implemented."))
+            val plainBytes = value.toByteArray(Charsets.UTF_8)
+            val cipherBytes = ByteArray(plainBytes.size + 48) // crypto_box_SEALBYTES
+            val sodium = com.goterl.lazysodium.LazySodiumAndroid(
+                com.goterl.lazysodium.SodiumAndroid()
+            )
+            val encrypted = sodium.cryptoBoxSeal(
+                cipherBytes,
+                plainBytes,
+                plainBytes.size.toLong(),
+                recipientKey
+            )
+            if (!encrypted) {
+                return@withContext Result.failure(
+                    Exception("Libsodium could not encrypt the secret. Nothing was sent to GitHub.")
+                )
+            }
+
+            val response = api.createOrUpdateRepoSecret(
+                auth = "Bearer $token",
+                owner = owner,
+                repo = repo,
+                secretName = cleanName,
+                body = CreateSecretBody(
+                    encryptedValue = android.util.Base64.encodeToString(
+                        cipherBytes,
+                        android.util.Base64.NO_WRAP
+                    ),
+                    keyId = publicKey.keyId
+                )
+            )
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(
+                    Exception("GitHub rejected secret '$cleanName': HTTP ${response.code()}")
+                )
+            }
+
+            Result.success(Unit)
+        } catch (e: retrofit2.HttpException) {
+            val message = when (e.code()) {
+                401 -> "Authentication failed. Check your GitHub token."
+                403 -> "Permission denied. Your token needs repository Actions secrets write access."
+                404 -> "Repository or Actions public key was not found."
+                else -> "GitHub secret API error: HTTP ${e.code()}"
+            }
+            Result.failure(Exception(message, e))
+        } catch (e: Exception) {
+            Result.failure(Exception("Unable to encrypt or save GitHub secret: ${e.message}", e))
+        }
     }
 
     suspend fun addBulkSecrets(
