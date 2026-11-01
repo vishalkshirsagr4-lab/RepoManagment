@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
+
 package com.example.ui.components
 
 import android.graphics.Bitmap
@@ -69,7 +71,6 @@ import java.util.zip.ZipInputStream
  * Legacy binary .doc/.xls files are identified as unsupported rather than shown as
  * if they were rendered successfully.
  */
-@OptIn(UnstableApi::class)
 @Composable
 fun RichFilePreview(
     fileName: String,
@@ -174,7 +175,6 @@ fun RichFilePreview(
     }
 }
 
-@OptIn(UnstableApi::class)
 @Composable
 private fun MediaFilePreview(
     sourceUrl: String,
