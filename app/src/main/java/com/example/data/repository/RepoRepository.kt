@@ -132,9 +132,7 @@ class RepoRepository(
                 repoDao.insertAll(entities)
                 Result.success(repos)
             } catch (e: Exception) {
-                // Return cached repos if available
-                val fallback = dynamicDemoRepos.toList()
-                Result.success(fallback)
+                Result.failure(e)
             }
         }
 
@@ -171,7 +169,7 @@ class RepoRepository(
             }
             Result.success(items)
         } catch (e: Exception) {
-            if (isDemoMode() || token.isNullOrBlank()) {
+            if (isDemoMode()) {
                 Result.success(DemoData.getDemoContents(path))
             } else {
                 Result.failure(e)
@@ -208,7 +206,7 @@ class RepoRepository(
             }
             Result.success(Pair(decoded, fileItem.sha))
         } catch (e: Exception) {
-            if (isDemoMode() || token.isNullOrBlank()) {
+            if (isDemoMode()) {
                 val demoFallback = DemoData.getDemoFileCode(path)
                 Result.success(Pair(demoFallback, "fallback-sha"))
             } else {
@@ -227,24 +225,14 @@ class RepoRepository(
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
         val key = "$owner/$repo:$path"
-        dynamicDemoFiles[key] = content
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before committing files."))
+        }
 
         val ext = path.substringAfterLast('.', "")
-        recentFileDao.saveRecentFile(
-            RecentFileEntity(
-                fileKey = "$owner/$repo:${branch ?: "main"}:$path",
-                repoFullName = "$owner/$repo",
-                branch = branch ?: "main",
-                filePath = path,
-                fileName = path.substringAfterLast('/'),
-                language = ext,
-                lastModified = System.currentTimeMillis(),
-                isDirty = false
-            )
-        )
-
         val token = secureStorage.getGitHubToken()
         if (token.isNullOrBlank()) {
+            dynamicDemoFiles[key] = content
             val newSha = "c" + (1000..9999).random()
             val newCommit = GitHubCommit(
                 sha = newSha,
@@ -290,7 +278,20 @@ class RepoRepository(
                 path = cleanPath,
                 body = request
             )
-            val commitSha = response.commit?.sha?.take(7) ?: "success"
+            val commitSha = response.commit?.sha?.take(7)
+                ?: return@withContext Result.failure(Exception("GitHub did not return a commit SHA."))
+            recentFileDao.saveRecentFile(
+                RecentFileEntity(
+                    fileKey = "$owner/$repo:${branch ?: "main"}:$path",
+                    repoFullName = "$owner/$repo",
+                    branch = branch ?: "main",
+                    filePath = path,
+                    fileName = path.substringAfterLast('/'),
+                    language = ext,
+                    lastModified = System.currentTimeMillis(),
+                    isDirty = false
+                )
+            )
             Result.success(
                 PushResult(
                     success = true,
@@ -324,12 +325,15 @@ class RepoRepository(
         commitMessage: String,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before deleting files."))
+        }
         val key = "$owner/$repo:$path"
-        dynamicDemoFiles.remove(key)
-        recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$path")
 
         val token = secureStorage.getGitHubToken()
         if (token.isNullOrBlank()) {
+            dynamicDemoFiles.remove(key)
+            recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$path")
             return@withContext Result.success(
                 PushResult(
                     success = true,
@@ -355,6 +359,7 @@ class RepoRepository(
                 branch = branch
             )
             if (response.isSuccessful) {
+                recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$path")
                 Result.success(
                     PushResult(
                         success = true,
@@ -382,29 +387,16 @@ class RepoRepository(
         commitMessage: String,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        val oldKey = "$owner/$repo:$oldPath"
-        val newKey = "$owner/$repo:$newPath"
-        val content = dynamicDemoFiles[oldKey] ?: ""
-        dynamicDemoFiles.remove(oldKey)
-        dynamicDemoFiles[newKey] = content
-
-        recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$oldPath")
-        val ext = newPath.substringAfterLast('.', "")
-        recentFileDao.saveRecentFile(
-            RecentFileEntity(
-                fileKey = "$owner/$repo:${branch ?: "main"}:$newPath",
-                repoFullName = "$owner/$repo",
-                branch = branch ?: "main",
-                filePath = newPath,
-                fileName = newPath.substringAfterLast('/'),
-                language = ext,
-                lastModified = System.currentTimeMillis(),
-                isDirty = false
-            )
-        )
-
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before renaming files."))
+        }
         val token = secureStorage.getGitHubToken()
         if (token.isNullOrBlank()) {
+            if (!isDemoMode()) return@withContext Result.failure(Exception("GitHub account connection required."))
+            val oldKey = "$owner/$repo:$oldPath"
+            val newKey = "$owner/$repo:$newPath"
+            val content = dynamicDemoFiles.remove(oldKey) ?: ""
+            dynamicDemoFiles[newKey] = content
             val newSha = "ren-" + (1000..9999).random()
             return@withContext Result.success(
                 PushResult(
@@ -426,7 +418,8 @@ class RepoRepository(
 
             // 1. Fetch old file to obtain content & SHA
             val oldItem = api.getFileContent(auth, owner, repo, cleanOld, branch)
-            val base64 = oldItem.content?.replace("\n", "")?.replace("\r", "") ?: ""
+            val base64 = oldItem.content?.replace("\n", "")?.replace("\r", "")
+                ?: return@withContext Result.failure(Exception("GitHub returned no content for $cleanOld."))
 
             // 2. Create new file with same content
             val createResp = api.createOrUpdateFile(
@@ -442,7 +435,7 @@ class RepoRepository(
             )
 
             // 3. Delete old file
-            api.deleteFile(
+            val deleteResp = api.deleteFile(
                 auth = auth,
                 owner = owner,
                 repo = repo,
@@ -451,8 +444,20 @@ class RepoRepository(
                 sha = oldItem.sha,
                 branch = branch
             )
+            if (!deleteResp.isSuccessful) {
+                return@withContext Result.failure(Exception("New file was created, but deleting the old file failed: HTTP " + deleteResp.code()))
+            }
 
-            val commitSha = createResp.commit?.sha?.take(7) ?: "success"
+            val commitSha = createResp.commit?.sha?.take(7)
+                ?: return@withContext Result.failure(Exception("GitHub did not return a commit SHA for the rename."))
+            recentFileDao.deleteRecentFile("$owner/$repo:${branch ?: "main"}:$oldPath")
+            val ext = newPath.substringAfterLast('.', "")
+            recentFileDao.saveRecentFile(RecentFileEntity(
+                fileKey = "$owner/$repo:${branch ?: "main"}:$newPath",
+                repoFullName = "$owner/$repo", branch = branch ?: "main",
+                filePath = newPath, fileName = newPath.substringAfterLast('/'),
+                language = ext, lastModified = System.currentTimeMillis(), isDirty = false
+            ))
             Result.success(
                 PushResult(
                     success = true,
@@ -477,7 +482,10 @@ class RepoRepository(
         commitMessage: String,
         branch: String?
     ): Result<PushResult> = withContext(Dispatchers.IO) {
-        val cleanOld = oldFolderPath.trim('/')
+        val cleanOld = oldFolderPath.trim('/') 
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before renaming folders."))
+        }
         val cleanNew = newFolderPath.trim('/')
         val token = secureStorage.getGitHubToken()
 
@@ -506,18 +514,26 @@ class RepoRepository(
             val auth = "Bearer $token"
             val contents = api.getDirectoryContents(auth, owner, repo, cleanOld, branch)
             var count = 0
+            var lastCommitSha: String? = null
             for (item in contents) {
                 if (item.type == "file") {
                     val relativePath = item.path.removePrefix(cleanOld).trim('/')
                     val targetPath = "$cleanNew/$relativePath"
-                    renameFile(owner, repo, item.path, targetPath, commitMessage, branch)
+                    val renameResult = renameFile(owner, repo, item.path, targetPath, commitMessage, branch)
+                    if (renameResult.isFailure) {
+                        return@withContext Result.failure(renameResult.exceptionOrNull() ?: Exception("Failed to rename " + item.path))
+                    }
+                    lastCommitSha = renameResult.getOrThrow().commitSha
                     count++
                 }
+            }
+            if (count == 0 || lastCommitSha.isNullOrBlank()) {
+                return@withContext Result.failure(Exception("No files were renamed in folder " + cleanOld))
             }
             Result.success(
                 PushResult(
                     success = true,
-                    commitSha = "ren-ok",
+                    commitSha = lastCommitSha,
                     branch = branch ?: "main",
                     message = "Renamed folder $cleanOld to $cleanNew ($count files updated)",
                     timestamp = "Just now",
@@ -591,6 +607,9 @@ class RepoRepository(
         commitDescription: String?,
         changes: List<StagedChange>
     ): Result<PushResult> = withContext(Dispatchers.IO) {
+        if (secureStorage.getGitHubToken().isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before committing staged changes."))
+        }
         if (changes.isEmpty()) {
             return@withContext Result.failure(Exception("No staged changes to commit."))
         }
@@ -823,7 +842,7 @@ class RepoRepository(
                 val commits = api.getCommits(authHeader, owner, repo, branch)
                 Result.success(commits)
             } catch (e: Exception) {
-                Result.success(DemoData.demoCommits)
+                if (isDemoMode()) Result.success(DemoData.demoCommits) else Result.failure(e)
             }
         }
 
@@ -835,7 +854,7 @@ class RepoRepository(
                 val branches = api.getBranches(authHeader, owner, repo)
                 Result.success(branches)
             } catch (e: Exception) {
-                Result.success(DemoData.demoBranches)
+                if (isDemoMode()) Result.success(DemoData.demoBranches) else Result.failure(e)
             }
         }
 
@@ -1012,34 +1031,16 @@ suspend fun getRepoSecrets(
         if (!token.isNullOrBlank()) {
             try {
                 val pubKey = api.getRepoPublicKey("Bearer $token", owner, repo)
-                val fakeEncrypted = Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-                val response = api.createOrUpdateRepoSecret(
-                    auth = "Bearer $token",
-                    owner = owner,
-                    repo = repo,
-                    secretName = cleanName,
-                    body = CreateSecretBody(encryptedValue = fakeEncrypted, keyId = pubKey.keyId)
-                )
-                if (response.isSuccessful) {
-                    remoteSuccess = true
-                }
-            } catch (_: Exception) {
-                // Ignore API failure and save securely to local vault
+                return@withContext Result.failure(Exception("GitHub secrets require libsodium sealed-box encryption. Base64 encoding is not encryption, so no secret was uploaded."))
+            } catch (e: Exception) {
+                return@withContext Result.failure(Exception("Unable to prepare GitHub secret: " + e.message, e))
             }
+        } else if (!isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before managing repository secrets."))
         }
 
         // Always store securely in encrypted device vault so secret is preserved
-        val localMap = loadLocalSecrets(fullName).toMutableMap()
-        val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
-        localMap[cleanName] = RepoSecretItem(
-            name = cleanName,
-            createdAt = localMap[cleanName]?.createdAt ?: now,
-            updatedAt = now,
-            isLocal = !remoteSuccess
-        )
-        saveLocalSecrets(fullName, localMap)
-
-        Result.success(Unit)
+        Result.failure(Exception("Secret was not saved because secure GitHub encryption is not implemented."))
     }
 
     suspend fun addBulkSecrets(
@@ -1105,10 +1106,18 @@ suspend fun getRepoSecrets(
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val fullName = "$owner/$repo"
         val token = secureStorage.getGitHubToken()
+        if (token.isNullOrBlank() && !isDemoMode()) {
+            return@withContext Result.failure(Exception("Connect your GitHub account before deleting repository secrets."))
+        }
         if (!token.isNullOrBlank()) {
             try {
-                api.deleteRepoSecret("Bearer $token", owner, repo, secretName)
-            } catch (_: Exception) {}
+                val response = api.deleteRepoSecret("Bearer $token", owner, repo, secretName)
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception("GitHub rejected secret deletion: HTTP " + response.code()))
+                }
+            } catch (e: Exception) {
+                return@withContext Result.failure(Exception("Unable to delete GitHub secret: " + e.message, e))
+            }
         }
         val localMap = loadLocalSecrets(fullName).toMutableMap()
         localMap.remove(secretName)

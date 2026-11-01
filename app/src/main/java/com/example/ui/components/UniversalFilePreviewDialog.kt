@@ -52,12 +52,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.example.data.security.SecureStorage
 import com.example.data.remote.models.GitHubContentItem
 import com.example.ui.common.FileUtils
 import com.example.ui.theme.BorderSubtle
@@ -90,6 +93,19 @@ fun UniversalFilePreviewDialog(
 
     val rawUrl = item.downloadUrl
         ?: "https://raw.githubusercontent.com/$repoFullName/$branch/${item.path}"
+    val context = LocalContext.current
+    val token = remember { SecureStorage.getInstance(context).getGitHubToken() }
+    val authenticatedImageRequest = remember(rawUrl, token) {
+        ImageRequest.Builder(context)
+            .data(rawUrl)
+            .apply {
+                if (!token.isNullOrBlank()) {
+                    addHeader("Authorization", "Bearer $token")
+                }
+            }
+            .crossfade(true)
+            .build()
+    }
 
     // Try decoding base64 if available for direct bitmap rendering
     val bitmap = remember(item.content) {
@@ -193,7 +209,7 @@ fun UniversalFilePreviewDialog(
                                     )
                                 } else {
                                     AsyncImage(
-                                        model = rawUrl,
+                                        model = authenticatedImageRequest,
                                         contentDescription = item.name,
                                         contentScale = ContentScale.Fit,
                                         modifier = Modifier.fillMaxSize().padding(6.dp)
