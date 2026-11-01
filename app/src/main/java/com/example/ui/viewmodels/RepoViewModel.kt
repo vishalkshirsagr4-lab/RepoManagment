@@ -680,22 +680,37 @@ class RepoViewModel(application: Application) : AndroidViewModel(application) {
     fun clearStatusMessage() {
         _uiState.value = _uiState.value.copy(statusMessage = null, errorMessage = null)
     }
+// Repository Secrets
+fun loadRepoSecrets(owner: String, repo: String) {
+    viewModelScope.launch {
 
-    // Repository Secrets
-    fun loadRepoSecrets(owner: String, repo: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isSecretsLoading = true)
-            val result = repoRepository.getRepoSecrets(owner, repo)
-            if (result.isSuccess) {
-                _uiState.value = _uiState.value.copy(
-                    isSecretsLoading = false,
-                    secrets = result.getOrThrow()
-                )
-            } else {
-                _uiState.value = _uiState.value.copy(isSecretsLoading = false)
-            }
+        _uiState.value = _uiState.value.copy(
+            isSecretsLoading = true,
+            secretsError = null,
+            secrets = emptyList()
+        )
+
+        val result = repoRepository.getRepoSecrets(owner, repo)
+
+        if (result.isSuccess) {
+
+            _uiState.value = _uiState.value.copy(
+                isSecretsLoading = false,
+                secrets = result.getOrThrow(),
+                secretsError = null
+            )
+
+        } else {
+
+            _uiState.value = _uiState.value.copy(
+                isSecretsLoading = false,
+                secrets = emptyList(),
+                secretsError = result.exceptionOrNull()?.message
+                    ?: "Unable to fetch GitHub secrets."
+            )
         }
     }
+}
 
     fun addSecret(
         owner: String,
