@@ -835,7 +835,7 @@ class RepoRepository(
                 val commits = api.getCommits(authHeader, owner, repo, branch)
                 Result.success(commits)
             } catch (e: Exception) {
-                Result.success(DemoData.demoCommits)
+                if (isDemoMode()) Result.success(DemoData.demoCommits) else Result.failure(e)
             }
         }
 
@@ -847,7 +847,7 @@ class RepoRepository(
                 val branches = api.getBranches(authHeader, owner, repo)
                 Result.success(branches)
             } catch (e: Exception) {
-                Result.success(DemoData.demoBranches)
+                if (isDemoMode()) Result.success(DemoData.demoBranches) else Result.failure(e)
             }
         }
 
