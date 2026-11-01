@@ -227,6 +227,22 @@ class SecureStorage(context: Context) {
         prefs.edit().putString(key, encrypted).apply()
     }
 
+    // Persist staged source changes using the same Android Keystore AES-GCM encryption
+    // used for credentials. Staged files can contain private source code.
+    fun getStagedChangesRaw(): String? {
+        return decrypt(prefs.getString("enc_staged_changes_v1", null))
+    }
+
+    fun saveStagedChangesRaw(json: String) {
+        val encrypted = encrypt(json)
+            ?: throw IllegalStateException("Unable to encrypt staged changes with Android Keystore.")
+        prefs.edit().putString("enc_staged_changes_v1", encrypted).apply()
+    }
+
+    fun clearStagedChangesRaw() {
+        prefs.edit().remove("enc_staged_changes_v1").apply()
+    }
+
     fun clearAllCredentials() {
         prefs.edit()
             .remove(KEY_GITHUB_TOKEN)
