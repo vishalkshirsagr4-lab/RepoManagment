@@ -355,7 +355,7 @@ private fun extractOfficeText(file: File, extension: String): String {
         }.toSortedMap()
         if (slides.isEmpty()) throw IllegalStateException("The PPTX file contains no readable slides.")
         return slides.entries.joinToString("\n\n") { (name, xml) ->
-            "\${name.substringAfterLast('/').removeSuffix(".xml")}:\n" + xmlText(xml)
+            "${name.substringAfterLast('/').removeSuffix(".xml")}:\n" + xmlText(xml)
         }
     }
 
