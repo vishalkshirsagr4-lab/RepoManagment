@@ -306,9 +306,9 @@ private fun extractOfficeText(file: File, extension: String): String {
     if (extension == "rtf") {
         val source = file.readText(Charsets.UTF_8)
         return source
-            .replace(Regex("""\\\\'[0-9a-fA-F]{2}"""), " ")
-            .replace(Regex("""\\\\par[d]?"""), "\\n")
-            .replace(Regex("""\\\\[a-zA-Z]+-?\\d* ?"""), " ")
+            .replace(Regex("""\\'[0-9a-fA-F]{2}"""), " ")
+            .replace(Regex("""\\par[d]?"""), "\n")
+            .replace(Regex("""\\[a-zA-Z]+-?\d* ?"""), " ")
             .replace(Regex("[{}]"), "")
             .replace(Regex("[ \\t]+"), " ")
             .trim()
@@ -354,7 +354,7 @@ private fun extractOfficeText(file: File, extension: String): String {
             it.startsWith("ppt/slides/slide") && it.endsWith(".xml")
         }.toSortedMap()
         if (slides.isEmpty()) throw IllegalStateException("The PPTX file contains no readable slides.")
-        return slides.entries.joinToString("\\n\\n") { (name, xml) ->
+        return slides.entries.joinToString("\n\n") { (name, xml) ->
             "${name.substringAfterLast('/').removeSuffix(".xml")}:\\n" + xmlText(xml)
         }
     }
