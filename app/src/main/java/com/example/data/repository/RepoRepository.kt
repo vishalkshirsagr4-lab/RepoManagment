@@ -230,19 +230,6 @@ class RepoRepository(
         }
 
         val ext = path.substringAfterLast('.', "")
-        recentFileDao.saveRecentFile(
-            RecentFileEntity(
-                fileKey = "$owner/$repo:${branch ?: "main"}:$path",
-                repoFullName = "$owner/$repo",
-                branch = branch ?: "main",
-                filePath = path,
-                fileName = path.substringAfterLast('/'),
-                language = ext,
-                lastModified = System.currentTimeMillis(),
-                isDirty = false
-            )
-        )
-
         val token = secureStorage.getGitHubToken()
         if (token.isNullOrBlank()) {
             val newSha = "c" + (1000..9999).random()
@@ -290,7 +277,20 @@ class RepoRepository(
                 path = cleanPath,
                 body = request
             )
-            val commitSha = response.commit?.sha?.take(7) ?: "success"
+            val commitSha = response.commit?.sha?.take(7)
+                ?: return@withContext Result.failure(Exception("GitHub did not return a commit SHA."))
+            recentFileDao.saveRecentFile(
+                RecentFileEntity(
+                    fileKey = "$owner/$repo:${branch ?: "main"}:$path",
+                    repoFullName = "$owner/$repo",
+                    branch = branch ?: "main",
+                    filePath = path,
+                    fileName = path.substringAfterLast('/'),
+                    language = ext,
+                    lastModified = System.currentTimeMillis(),
+                    isDirty = false
+                )
+            )
             Result.success(
                 PushResult(
                     success = true,
