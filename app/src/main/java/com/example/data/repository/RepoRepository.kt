@@ -192,10 +192,10 @@ class RepoRepository(
         val authHeader = if (!token.isNullOrBlank()) "Bearer $token" else null
         try {
             val cleanPath = path.trim('/')
-            val isBin = FileUtils.isBinary(cleanPath)
             val fileItem = api.getFileContent(authHeader, owner, repo, cleanPath, ref)
-            val decoded = if (fileItem.content != null) {
-                val cleanBase64 = fileItem.content.replace("\n", "").replace("\r", "")
+            val cleanBase64 = fileItem.content?.replace("\n", "")?.replace("\r", "")
+            val isBin = FileUtils.isBinary(cleanPath) || FileUtils.isBinaryBase64(cleanBase64)
+            val decoded = if (cleanBase64 != null) {
                 if (isBin) {
                     cleanBase64
                 } else {

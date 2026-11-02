@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import android.net.Uri
+import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -1624,12 +1626,50 @@ private fun UploadFileDialog(
     ) { uri: Uri? ->
         if (uri != null) {
             try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                val bytes = inputStream?.readBytes()
-                val name = uri.lastPathSegment?.substringAfterLast('/') ?: "uploaded_asset"
-                selectedFileName = name
+                val resolver = context.contentResolver
+                val displayName = resolver.query(
+                    uri,
+                    arrayOf(OpenableColumns.DISPLAY_NAME),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                    } else null
+                }
+
+                val mimeType = resolver.getType(uri)
+                val mimeExtension = mimeType
+                    ?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+                    ?.lowercase()
+
+                var safeName = displayName
+                    ?.substringAfterLast('/')
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "upload_${System.currentTimeMillis()}"
+
+                // Some Android providers return opaque names such as "image:12345".
+                // Add the real file extension from the MIME type so GitHub and the
+                // in-app preview can identify the uploaded binary correctly.
+                if (!safeName.contains('.') && !mimeExtension.isNullOrBlank()) {
+                    safeName = "$safeName.$mimeExtension"
+                }
+
+                val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: throw IllegalStateException("Android could not read the selected file.")
+
+                if (bytes.isEmpty()) {
+                    throw IllegalStateException("The selected file is empty.")
+                }
+
+                selectedFileName = safeName
                 selectedFileBytes = bytes
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                selectedFileName = ""
+                selectedFileBytes = null
+            }
         }
     }
 

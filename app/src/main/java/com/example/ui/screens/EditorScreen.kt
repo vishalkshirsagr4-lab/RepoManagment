@@ -88,6 +88,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+import com.example.data.security.SecureStorage
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.BookmarkAdded
 import androidx.compose.material.icons.filled.CloudUpload
@@ -784,7 +787,7 @@ fun EditorScreen(
             ) {
                 Text("No file currently open. Open a file from Repositories.", color = TextSecondary)
             }
-        } else if (FileUtils.isBinary(activeTab.fileName)) {
+        } else if (FileUtils.isBinary(activeTab.fileName) || FileUtils.isBinaryBase64(activeTab.content)) {
             BinaryAssetEditorPane(
                 tab = activeTab,
                 onRename = { showRenameDialog = true },
@@ -1056,12 +1059,25 @@ private fun BinaryAssetEditorPane(
     onCommit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isImage = FileUtils.isImage(tab.fileName)
+    val isImage = FileUtils.isImage(tab.fileName) || FileUtils.isImageBase64(tab.content)
     val isDoc = FileUtils.isDocument(tab.fileName)
     val isMedia = FileUtils.isMedia(tab.fileName)
     val typeLabel = FileUtils.getFileTypeLabel(tab.fileName)
 
     val rawUrl = "https://raw.githubusercontent.com/${tab.repoFullName}/${tab.branch}/${tab.filePath}"
+    val context = LocalContext.current
+    val githubToken = remember { SecureStorage.getInstance(context).getGitHubToken() }
+    val authenticatedImageRequest = remember(rawUrl, githubToken) {
+        ImageRequest.Builder(context)
+            .data(rawUrl)
+            .apply {
+                if (!githubToken.isNullOrBlank()) {
+                    addHeader("Authorization", "Bearer $githubToken")
+                }
+            }
+            .crossfade(true)
+            .build()
+    }
 
     // Decode bitmap from Base64 if available
     val bitmap = remember(tab.content) {
@@ -1194,7 +1210,7 @@ private fun BinaryAssetEditorPane(
                         )
                     } else {
                         AsyncImage(
-                            model = rawUrl,
+                            model = authenticatedImageRequest,
                             contentDescription = tab.fileName,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
