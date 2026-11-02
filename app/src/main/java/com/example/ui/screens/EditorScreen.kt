@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
@@ -62,6 +61,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,6 +90,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import com.example.data.security.SecureStorage
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.BookmarkAdded
@@ -141,7 +142,6 @@ fun EditorScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .imePadding()
             .background(DarkBg)
             .testTag("editor_screen")
     ) {
@@ -803,6 +803,14 @@ fun EditorScreen(
             }
             val scrollState = rememberScrollState()
             val horizontalScrollState = rememberScrollState()
+            val lineHeightPx = with(LocalDensity.current) { (uiState.fontSizeSp * 1.5f).sp.toPx() }
+
+            LaunchedEffect(uiState.currentMatchLine, uiState.searchQuery, activeTab.id) {
+                if (uiState.searchQuery.isNotBlank()) {
+                    val target = ((uiState.currentMatchLine - 1).coerceAtLeast(0) * lineHeightPx).toInt()
+                    scrollState.animateScrollTo(target)
+                }
+            }
 
             Box(
                 modifier = Modifier
@@ -833,7 +841,6 @@ fun EditorScreen(
                                     color = TextTertiary
                                 )
                             }
-                            Spacer(modifier = Modifier.height(280.dp))
                         }
                         Box(
                             modifier = Modifier
@@ -881,7 +888,6 @@ fun EditorScreen(
                                 )
                             }
                         )
-                        Spacer(modifier = Modifier.height(280.dp))
                     }
                 }
             }
