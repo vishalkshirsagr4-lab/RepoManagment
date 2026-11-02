@@ -46,6 +46,7 @@ data class EditorUiState(
     val isMultilineExpanded: Boolean = false,
     val searchMatchCount: Int = 0,
     val currentMatchIndex: Int = 0,
+    val currentMatchLine: Int = 1,
     val cursorLine: Int = 1,
     val cursorColumn: Int = 1,
     val fontSizeSp: Float = 13f,
@@ -326,19 +327,39 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun updateSearchMatches(query: String, text: String) {
         if (query.isEmpty()) {
-            _uiState.value = _uiState.value.copy(searchMatchCount = 0, currentMatchIndex = 0)
+            _uiState.value = _uiState.value.copy(
+                searchMatchCount = 0,
+                currentMatchIndex = 0,
+                currentMatchLine = 1
+            )
             return
         }
         val regex = buildSearchRegex(query)
         if (regex == null) {
-            _uiState.value = _uiState.value.copy(searchMatchCount = 0, currentMatchIndex = 0)
+            _uiState.value = _uiState.value.copy(
+                searchMatchCount = 0,
+                currentMatchIndex = 0,
+                currentMatchLine = 1
+            )
             return
         }
-        val occurrences = regex.findAll(text).count()
+        val matches = regex.findAll(text).toList()
+        val firstMatchStart = matches.firstOrNull()?.range?.first ?: 0
+        val line = text.take(firstMatchStart).count { it == '\\n' } + 1
         _uiState.value = _uiState.value.copy(
-            searchMatchCount = occurrences,
-            currentMatchIndex = if (occurrences > 0) 1 else 0
+            searchMatchCount = matches.size,
+            currentMatchIndex = if (matches.isNotEmpty()) 1 else 0,
+            currentMatchLine = line
         )
+    }
+
+    private fun updateSelectedMatchLine(index: Int) {
+        val active = _uiState.value.activeTab ?: return
+        val regex = buildSearchRegex(_uiState.value.searchQuery) ?: return
+        val matches = regex.findAll(active.content).toList()
+        val match = matches.getOrNull(index - 1) ?: return
+        val line = active.content.take(match.range.first).count { it == '\\n' } + 1
+        _uiState.value = _uiState.value.copy(currentMatchLine = line)
     }
 
     fun replaceCurrent() {
@@ -383,6 +404,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val curr = _uiState.value.currentMatchIndex
             val next = if (curr >= total) 1 else curr + 1
             _uiState.value = _uiState.value.copy(currentMatchIndex = next)
+            updateSelectedMatchLine(next)
         }
     }
 
@@ -392,6 +414,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val curr = _uiState.value.currentMatchIndex
             val prev = if (curr <= 1) total else curr - 1
             _uiState.value = _uiState.value.copy(currentMatchIndex = prev)
+            updateSelectedMatchLine(prev)
         }
     }
 
