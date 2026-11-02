@@ -80,7 +80,7 @@ object FileUtils {
     private fun decodeBase64Safely(content: String?): ByteArray? {
         if (content.isNullOrBlank()) return null
         return try {
-            val clean = content.replace("\\n", "").replace("\\r", "").trim()
+            val clean = content.replace("\n", "").replace("\r", "").trim()
             android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
         } catch (_: IllegalArgumentException) {
             null
