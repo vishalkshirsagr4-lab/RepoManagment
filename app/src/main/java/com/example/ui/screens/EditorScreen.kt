@@ -787,7 +787,7 @@ fun EditorScreen(
             ) {
                 Text("No file currently open. Open a file from Repositories.", color = TextSecondary)
             }
-        } else if (FileUtils.isBinary(activeTab.fileName)) {
+        } else if (FileUtils.isBinary(activeTab.fileName) || FileUtils.isBinaryBase64(activeTab.content)) {
             BinaryAssetEditorPane(
                 tab = activeTab,
                 onRename = { showRenameDialog = true },
@@ -1059,7 +1059,7 @@ private fun BinaryAssetEditorPane(
     onCommit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isImage = FileUtils.isImage(tab.fileName)
+    val isImage = FileUtils.isImage(tab.fileName) || FileUtils.isImageBase64(tab.content)
     val isDoc = FileUtils.isDocument(tab.fileName)
     val isMedia = FileUtils.isMedia(tab.fileName)
     val typeLabel = FileUtils.getFileTypeLabel(tab.fileName)
