@@ -345,7 +345,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
         val matches = regex.findAll(text).toList()
         val firstMatchStart = matches.firstOrNull()?.range?.first ?: 0
-        val line = text.take(firstMatchStart).count { it == '\\n' } + 1
+        val line = text.take(firstMatchStart).count { it == '\n' } + 1
         _uiState.value = _uiState.value.copy(
             searchMatchCount = matches.size,
             currentMatchIndex = if (matches.isNotEmpty()) 1 else 0,
@@ -358,7 +358,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         val regex = buildSearchRegex(_uiState.value.searchQuery) ?: return
         val matches = regex.findAll(active.content).toList()
         val match = matches.getOrNull(index - 1) ?: return
-        val line = active.content.take(match.range.first).count { it == '\\n' } + 1
+        val line = active.content.take(match.range.first).count { it == '\n' } + 1
         _uiState.value = _uiState.value.copy(currentMatchLine = line)
     }
 
