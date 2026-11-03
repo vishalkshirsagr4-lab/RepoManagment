@@ -152,12 +152,11 @@ fun EditorScreen(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle)
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Repo Switcher dropdown
                 Box {
@@ -219,6 +218,7 @@ fun EditorScreen(
 
                 // Center/Right: Git Compare, Stage File, and Batch Commit & Push
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -230,7 +230,7 @@ fun EditorScreen(
                             contentColor = if (uiState.isCompareMode) DarkBg else TextPrimary
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.testTag("git_compare_btn")
+                        modifier = Modifier.weight(1f).testTag("git_compare_btn")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Difference,
@@ -254,7 +254,7 @@ fun EditorScreen(
                                 contentColor = if (activeTab.isDirty) SecondaryCyan else TextSecondary
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.testTag("stage_file_btn")
+                            modifier = Modifier.weight(1f).testTag("stage_file_btn")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Check,
@@ -279,7 +279,7 @@ fun EditorScreen(
                                 contentColor = TextPrimary
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.testTag("batch_push_btn")
+                            modifier = Modifier.weight(1f).testTag("batch_push_btn")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CloudUpload,
@@ -302,7 +302,7 @@ fun EditorScreen(
                                 contentColor = TextPrimary
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.testTag("commit_button")
+                            modifier = Modifier.weight(1f).testTag("commit_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Commit,
