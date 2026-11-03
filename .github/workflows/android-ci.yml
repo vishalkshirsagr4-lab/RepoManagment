@@ -1,4 +1,4 @@
-name: Android CI
+name: Android CI and Release
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-ci-${{ github.ref }}
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build and publish Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -37,7 +37,8 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Generate CI debug keystore
+      - name: Build debug APK for pull requests
+        if: github.event_name == 'pull_request'
         run: |
           keytool -genkeypair -v \
             -keystore debug.keystore \
@@ -48,14 +49,42 @@ jobs:
             -keysize 2048 \
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
+          gradle --no-daemon assembleDebug
 
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
-
-      - name: Upload debug APK
+      - name: Upload pull request debug APK
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: RepoManagerPro-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Restore permanent release signing key
+        if: github.event_name != 'pull_request'
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$RELEASE_KEYSTORE_BASE64" || (echo "Missing RELEASE_KEYSTORE_BASE64 secret" && exit 1)
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/my-upload-key.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/my-upload-key.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        if: github.event_name != 'pull_request'
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          APP_VERSION_CODE: ${{ github.run_number }}
+          APP_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Publish APK as GitHub Release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          gh release create "v$APP_VERSION_NAME" \
+            app/build/outputs/apk/release/app-release.apk \
+            --title "Repo Manager Pro $APP_VERSION_NAME" \
+            --generate-notes
