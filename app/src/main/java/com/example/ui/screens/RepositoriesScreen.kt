@@ -1664,6 +1664,26 @@ private fun UploadFileDialog(
                     throw IllegalStateException("The selected file is empty.")
                 }
 
+                // Some content providers return no MIME type and an opaque name.
+                // Infer the extension from the actual file signature as a fallback.
+                val inferredExtension = when {
+                    bytes.size >= 3 && bytes[0] == 0xFF.toByte() &&
+                        bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte() -> "jpg"
+                    bytes.size >= 8 && bytes[0] == 0x89.toByte() &&
+                        bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() &&
+                        bytes[3] == 0x47.toByte() -> "png"
+                    bytes.size >= 6 && String(bytes.copyOfRange(0, 3), Charsets.US_ASCII) == "GIF" -> "gif"
+                    bytes.size >= 12 && String(bytes.copyOfRange(0, 4), Charsets.US_ASCII) == "RIFF" &&
+                        String(bytes.copyOfRange(8, 12), Charsets.US_ASCII) == "WEBP" -> "webp"
+                    bytes.size >= 4 && bytes[0] == 0x25.toByte() &&
+                        bytes[1] == 0x50.toByte() && bytes[2] == 0x44.toByte() &&
+                        bytes[3] == 0x46.toByte() -> "pdf"
+                    else -> null
+                }
+                if (!safeName.contains('.') && !inferredExtension.isNullOrBlank()) {
+                    safeName = "$safeName.$inferredExtension"
+                }
+
                 selectedFileName = safeName
                 selectedFileBytes = bytes
             } catch (e: Exception) {
