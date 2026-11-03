@@ -1004,28 +1004,6 @@ suspend fun getRepoSecrets(
     }
 }
 
-            // Read local encrypted vault
-            val localSecrets = loadLocalSecrets(fullName)
-            val combined = mutableMapOf<String, RepoSecretItem>()
-            remoteSecrets.forEach { combined[it.name] = it }
-            localSecrets.forEach { (name, item) ->
-                if (!combined.containsKey(name)) {
-                    combined[name] = item
-                }
-            }
-
-            if (combined.isEmpty() && (isDemoMode() || token.isNullOrBlank())) {
-                val demoDefaults = listOf(
-                    RepoSecretItem("DATABASE_URL", "2026-10-15T12:00:00Z", "2026-10-15T12:00:00Z", false),
-                    RepoSecretItem("CLOUDFLARE_API_KEY", "2026-10-18T08:30:00Z", "2026-10-18T08:30:00Z", false),
-                    RepoSecretItem("NEXT_PUBLIC_APP_URL", "2026-10-20T14:15:00Z", "2026-10-20T14:15:00Z", false),
-                    RepoSecretItem("PRODUCTION_SIGNING_KEY", "2026-10-22T09:45:00Z", "2026-10-22T09:45:00Z", false)
-                )
-                demoDefaults.forEach { combined[it.name] = it }
-            }
-
-            Result.success(combined.values.toList().sortedBy { it.name })
-        }
 
     suspend fun addOrUpdateSecret(
         owner: String,
