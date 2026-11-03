@@ -43,13 +43,20 @@ object FileUtils {
     fun isImageBase64(content: String?): Boolean {
         val bytes = decodeBase64Safely(content) ?: return false
         if (bytes.size < 4) return false
-        return isPng(bytes) ||
+        val knownImageSignature = isPng(bytes) ||
             isJpeg(bytes) ||
             isGif(bytes) ||
             isWebp(bytes) ||
             (bytes[0] == 0x42.toByte() && bytes[1] == 0x4D.toByte()) ||
             (bytes[0] == 0x00.toByte() && bytes[1] == 0x00.toByte() &&
                 bytes[2] == 0x01.toByte() && bytes[3] == 0x00.toByte())
+        if (knownImageSignature) return true
+
+        val options = android.graphics.BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        return options.outWidth > 0 && options.outHeight > 0
     }
 
     fun isBinaryBase64(content: String?): Boolean {
