@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
@@ -52,6 +53,7 @@ import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.DeploymentsScreen
 import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.RepositoriesScreen
+import com.example.ui.screens.PollinationsScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.DarkBg
 import com.example.ui.theme.DarkElevatedSurface
@@ -78,6 +80,7 @@ enum class NavDestination(
     EDITOR("Editor", Icons.Default.Code, "nav_editor"),
     DEPLOYMENTS("Deployments", Icons.Default.RocketLaunch, "nav_deployments"),
     BACKUPS("Backups", Icons.Default.Archive, "nav_backups"),
+    AI("AI", Icons.Default.AutoAwesome, "nav_ai"),
     SETTINGS("Settings", Icons.Default.Settings, "nav_settings")
 }
 
@@ -171,6 +174,7 @@ fun MainAppContainer() {
                             NavDestination.REPOSITORIES,
                             NavDestination.EDITOR,
                             NavDestination.DEPLOYMENTS,
+                            NavDestination.AI,
                             NavDestination.SETTINGS
                         )
 
@@ -271,6 +275,7 @@ private fun ScreenContent(
         NavDestination.BACKUPS -> BackupsScreen(
             viewModel = backupsViewModel
         )
+        NavDestination.AI -> PollinationsScreen()
         NavDestination.SETTINGS -> SettingsScreen(
             viewModel = settingsViewModel
         )
