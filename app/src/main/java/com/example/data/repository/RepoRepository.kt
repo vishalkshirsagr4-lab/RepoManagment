@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.util.Base64
 import com.example.data.demo.DemoData
 import com.example.ui.common.FileUtils
@@ -194,12 +195,24 @@ class RepoRepository(
             val cleanPath = path.trim('/')
             val fileItem = api.getFileContent(authHeader, owner, repo, cleanPath, ref)
             val cleanBase64 = fileItem.content?.replace("\n", "")?.replace("\r", "")
-            val isBin = FileUtils.isBinary(cleanPath) || FileUtils.isBinaryBase64(cleanBase64)
+            // GitHub's Contents API returns file bytes as Base64. Some Android-selected
+            // image files have opaque names without extensions, so inspect the actual
+            // decoded bytes instead of relying only on the filename/signature list.
+            val decodedBytes = cleanBase64?.let { encoded ->
+                runCatching { Base64.decode(encoded, Base64.DEFAULT) }.getOrNull()
+            }
+            val bitmapOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            if (decodedBytes != null && decodedBytes.isNotEmpty()) {
+                BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size, bitmapOptions)
+            }
+            val isActualImage = bitmapOptions.outWidth > 0 && bitmapOptions.outHeight > 0
+            val isBin = FileUtils.isBinary(cleanPath) ||
+                FileUtils.isBinaryBase64(cleanBase64) || isActualImage
             val decoded = if (cleanBase64 != null) {
                 if (isBin) {
                     cleanBase64
                 } else {
-                    String(Base64.decode(cleanBase64, Base64.DEFAULT), Charsets.UTF_8)
+                    String(decodedBytes ?: Base64.decode(cleanBase64, Base64.DEFAULT), Charsets.UTF_8)
                 }
             } else {
                 DemoData.getDemoFileCode(path)
