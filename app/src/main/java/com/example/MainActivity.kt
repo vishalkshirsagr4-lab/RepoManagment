@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.example.data.security.SecureStorage
@@ -24,7 +25,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             RepoManagerProTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().imePadding(),
                     color = DarkBg
                 ) {
                     MainAppContainer()
